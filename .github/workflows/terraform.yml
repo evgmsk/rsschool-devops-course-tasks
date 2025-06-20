@@ -26,7 +26,14 @@ jobs:
           role-to-assume: arn:aws:iam::753350392043:role/TerraformRole
           audience: sts.amazonaws.com
           aws-region: eu-west-1
-          
+      - name: Debug identity
+        run: |
+          curl -sSL -H "Authorization: Bearer $ACTIONS_ID_TOKEN" \
+            $ACTIONS_ID_TOKEN_REQUEST_URL | jq
+        env:
+          ACTIONS_ID_TOKEN: ${{ steps.aws-creds.outputs.id_token }}
+          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ steps.aws-creds.outputs.id_token_url }}
+    
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
 
