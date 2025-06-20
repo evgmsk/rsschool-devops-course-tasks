@@ -15,7 +15,7 @@ resource "aws_iam_role" "terraform_role" {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           }
           StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:YOUR_GITHUB_USERNAME/rsschool-devops-course-tasks:*"
+            "token.actions.githubusercontent.com:sub" = "repo:evgmsk/rsschool-devops-course-tasks:*"
           }
         }
       }
