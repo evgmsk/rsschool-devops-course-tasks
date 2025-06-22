@@ -86,14 +86,14 @@ resource "aws_security_group" "private_sg" {
 
 # NAT Instance in public subnet
 resource "aws_instance" "nat" {
-  ami                    = "ami-0c38b837cd80f13bb" # Ubuntu 24.04 LTS
-  instance_type          = "t2.nano"
-  subnet_id              = aws_subnet.public_2.id
-  source_dest_check      = false
-  key_name               = aws_key_pair.main.key_name
-  
+  ami               = "ami-0c38b837cd80f13bb" # Ubuntu 24.04 LTS
+  instance_type     = "t2.nano"
+  subnet_id         = aws_subnet.public_2.id
+  source_dest_check = false
+  key_name          = aws_key_pair.main.key_name
+
   vpc_security_group_ids = [aws_security_group.nat_sg.id]
-  
+
   user_data = <<-EOF
     #!/bin/bash
     apt-get update
@@ -105,7 +105,7 @@ resource "aws_instance" "nat" {
     iptables-save > /etc/iptables/rules.v4
     apt-get install -y iptables-persistent
   EOF
-  
+
   tags = {
     Name = "nat-instance"
   }
@@ -117,9 +117,9 @@ resource "aws_instance" "bastion" {
   instance_type = "t2.nano"
   subnet_id     = aws_subnet.public_1.id
   key_name      = aws_key_pair.main.key_name
-  
+
   vpc_security_group_ids = [aws_security_group.bastion_sg.id]
-  
+
   tags = {
     Name = "bastion-host"
   }
@@ -131,9 +131,9 @@ resource "aws_instance" "private" {
   instance_type = "t2.nano"
   subnet_id     = aws_subnet.private_1.id
   key_name      = aws_key_pair.main.key_name
-  
+
   vpc_security_group_ids = [aws_security_group.private_sg.id]
-  
+
   tags = {
     Name = "private-server"
   }
