@@ -14,9 +14,3 @@ resource "aws_key_pair" "main" {
   }
 }
 
-# Save private key to local file
-resource "local_file" "private_key" {
-  content         = tls_private_key.ssh_key.private_key_pem
-  filename        = "terraform-key.pem"
-  file_permission = "0600"
-}

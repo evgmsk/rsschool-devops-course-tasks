@@ -1,0 +1,1 @@
+terraform output -raw ssh_private_key | Out-File -FilePath "terraform-key.pem" -Encoding ASCII
