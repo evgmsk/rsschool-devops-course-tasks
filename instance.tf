@@ -1,7 +1,7 @@
 # Elastic IP for NAT Gateway
 resource "aws_eip" "nat" {
   domain = "vpc"
-  
+
   tags = {
     Name = "nat-gateway-eip"
   }
@@ -66,8 +66,6 @@ resource "aws_security_group" "private_sg" {
     Name = "private-security-group"
   }
 }
-
-
 
 # Bastion Host in public subnet
 resource "aws_instance" "bastion" {
