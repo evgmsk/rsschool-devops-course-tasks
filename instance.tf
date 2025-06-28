@@ -84,7 +84,7 @@ resource "aws_instance" "bastion" {
 # k3s Master Instance in private subnet
 resource "aws_instance" "k3s_master" {
   ami           = "ami-0c38b837cd80f13bb" # Ubuntu 24.04 LTS
-  instance_type = "t2.small"  # Upgraded to 2GB RAM for better k3s performance
+  instance_type = "t2.small"              # Upgraded to 2GB RAM for better k3s performance
   subnet_id     = aws_subnet.private_1.id
   key_name      = aws_key_pair.main.key_name
 
