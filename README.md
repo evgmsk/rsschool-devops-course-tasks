@@ -20,9 +20,9 @@ This Terraform configuration creates a complete AWS VPC infrastructure with publ
 - **Private Security Group**: Allows SSH only from bastion host
 
 ### Compute Resources
-- **NAT Instance**: Ubuntu 24.04 LTS t2.nano in public subnet (configured for NAT)
+- **NAT Gateway**: Managed AWS service in public subnet for outbound internet access
 - **Bastion Host**: Ubuntu 24.04 LTS t2.nano in public subnet
-- **Private Instance**: Ubuntu 24.04 LTS t2.nano in private subnet
+- **k3s Master**: Ubuntu 24.04 LTS t2.small in private subnet (Kubernetes control plane)
 
 ## Deployment
 
@@ -49,23 +49,25 @@ This Terraform configuration creates a complete AWS VPC infrastructure with publ
 
 ### SSH Key Generation
 Terraform automatically generates an SSH key pair:
-- Private key saved as `terraform-key.pem` in your project directory
+- Extract private key: `terraform output -raw ssh_private_key > terraform-key.pem`
+- Set permissions: `icacls terraform-key.pem /inheritance:r /remove "BUILTIN\Users" /grant:r "YourUsername:R"`
 - Public key uploaded to AWS as "terraform-key"
 
-### Accessing Private Instances
+### Accessing k3s Master
 1. SSH to the bastion host using its public IP:
    ```bash
    ssh -i terraform-key.pem ubuntu@<bastion-public-ip>
    ```
 
-2. Copy the private key to bastion host:
+2. Copy the private key and k3s-workload to bastion host:
    ```bash
    scp -i terraform-key.pem terraform-key.pem ubuntu@<bastion-public-ip>:~/
+   scp -i terraform-key.pem k3s-workload.yaml ubuntu@<bastion-public-ip>:~/
    ```
 
-3. From the bastion host, SSH to private instances:
+3. From the bastion host, SSH to k3s master:
    ```bash
-   ssh -i terraform-key.pem ubuntu@<private-instance-ip>
+   ssh -i terraform-key.pem ubuntu@<k3s-master-ip>
    ```
 
 ### SSH Key Management
@@ -73,18 +75,78 @@ Terraform automatically generates an SSH key pair:
 - Keep this file secure and don't commit it to version control
 - Use SSH agent forwarding for seamless access
 
+## k3s Kubernetes Cluster
+
+### Cluster Access
+1. SSH to bastion host:
+   ```bash
+   ssh -i terraform-key.pem ubuntu@<bastion-public-ip>
+   ```
+
+2. From bastion, access k3s master:
+   ```bash
+   ssh -i terraform-key.pem ubuntu@<k3s-master-ip>
+   ```
+
+3. Check cluster status:
+   ```bash
+   sudo k3s kubectl get nodes
+   sudo k3s kubectl get pods -A
+   ```
+
+### Deploy Sample Workload
+1. Copy the workload file from local machine to bastion host:
+   ```bash
+   scp -i terraform-key.pem terraform-key.pem ubuntu@<bastion-public-ip>:~/
+   scp -i terraform-key.pem k3s-workload.yaml ubuntu@<bastion-public-ip>:~/
+   ```
+
+2. SSH to bastion host and copy to k3s master:
+   ```bash
+   ssh -i terraform-key.pem ubuntu@<bastion-public-ip>
+   scp -i terraform-key.pem k3s-workload.yaml ubuntu@<k3s-master-ip>:~/
+   ```
+
+3. Set proper permissions on the key:
+   ```bash
+   chmod 600 terraform-key.pem
+   ```
+
+4. SSH to k3s master and deploy:
+   ```bash
+   ssh -i terraform-key.pem ubuntu@<k3s-master-ip>
+   sudo k3s kubectl apply -f k3s-workload.yaml
+   ```
+
+5. Verify deployment:
+   ```bash
+   sudo k3s kubectl get deployments
+   sudo k3s kubectl get pods
+   sudo k3s kubectl get services
+   ```
+
+### k3s Installation
+- k3s is automatically installed during instance boot via user-data
+- Uses t2.small instance type (2GB RAM) for proper k3s operation
+- Accessible only through bastion host for security
+
+### k3s Cluster Features
+- **Single Node**: Runs k3s server with API server, scheduler, and controller
+- **Automatic Setup**: k3s is installed automatically via user-data
+- **Private Network**: Cluster runs in private subnet with NAT internet access
+- **Secure Access**: Only accessible through bastion host
+
 ## Cost Optimization
 
-### Current Setup (Cost-Effective)
-- Uses NAT Instance (~$5/month for t2.nano)
-- Requires manual configuration but significant cost savings
-- Estimated savings: ~$40/month compared to NAT Gateway
+### Current Setup
+- Uses NAT Gateway (~$45/month plus data processing charges)
+- Fully managed service with high availability
+- No maintenance required
 
-### NAT Instance Configuration
-The NAT instance is automatically configured with:
-- IP forwarding enabled
-- iptables rules for NAT functionality
-- Source/destination check disabled
+### NAT Gateway Benefits
+- Automatic scaling to handle traffic spikes
+- Managed by AWS with high availability
+- No maintenance or configuration required
 
 ## Security Best Practices
 - Bastion host only allows SSH access
@@ -98,10 +160,39 @@ To destroy the infrastructure:
 terraform destroy
 ```
 
+## CI/CD Pipeline
+
+### GitHub Actions Workflow
+The project includes automated CI/CD pipeline with:
+- **Terraform Format Check**: Validates code formatting
+- **Terraform Plan**: Shows planned changes on PRs
+- **Terraform Apply**: Automatically applies changes on main branch
+
+### OIDC Authentication
+- Uses GitHub Actions OIDC provider for secure AWS authentication
+- No long-lived AWS credentials stored in GitHub
+- IAM role `TerraformRole` with necessary permissions
+
+### Workflow Triggers
+- Format check runs on all pushes to `task_1` branch
+- Plan runs on pull requests and main branch pushes
+- Apply runs only on main branch pushes
+
+## State Management
+
+### S3 Backend
+- Terraform state stored in S3 bucket `rs-terraform-c`
+- Versioning enabled for state file history
+- Server-side encryption with AES256
+- Remote state allows team collaboration
+
 ## Files Structure
 - `vpc.tf` - VPC, subnets, gateways, and routing
 - `instance.tf` - EC2 instances and security groups
 - `iam.tf` - IAM roles and policies
 - `oidc.tf` - OIDC provider configuration
+- `s3-bucket.tf` - S3 bucket for Terraform state
+- `key-pair.tf` - SSH key pair generation
 - `provider.tf` - AWS provider configuration
 - `terraform.tf` - Backend configuration
+- `.github/workflows/terraform.yml` - CI/CD pipeline

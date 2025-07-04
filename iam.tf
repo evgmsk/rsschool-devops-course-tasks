@@ -27,3 +27,23 @@ resource "aws_iam_role_policy_attachment" "terraform_role_policy" {
   role       = aws_iam_role.terraform_role.name
   policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
 }
+
+# Add IAM read permissions
+resource "aws_iam_role_policy" "terraform_role_iam_read" {
+  name = "IAMReadAccess"
+  role = aws_iam_role.terraform_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "iam:Get*",
+          "iam:List*"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      }
+    ]
+  })
+}

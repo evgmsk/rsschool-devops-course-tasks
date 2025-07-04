@@ -1,39 +1,22 @@
-# Security Group for NAT Instance
-resource "aws_security_group" "nat_sg" {
-  name_prefix = "nat-sg-"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]
-  }
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]
-  }
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+# Elastic IP for NAT Gateway
+resource "aws_eip" "nat" {
+  domain = "vpc"
 
   tags = {
-    Name = "nat-security-group"
+    Name = "nat-gateway-eip"
   }
+}
+
+# NAT Gateway
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public_1.id
+
+  tags = {
+    Name = "main-nat-gateway"
+  }
+
+  depends_on = [aws_internet_gateway.main]
 }
 
 # Security Group for Bastion Host
@@ -84,33 +67,6 @@ resource "aws_security_group" "private_sg" {
   }
 }
 
-# NAT Instance in public subnet
-resource "aws_instance" "nat" {
-  ami               = "ami-0c38b837cd80f13bb" # Ubuntu 24.04 LTS
-  instance_type     = "t2.nano"
-  subnet_id         = aws_subnet.public_2.id
-  source_dest_check = false
-  key_name          = aws_key_pair.main.key_name
-
-  vpc_security_group_ids = [aws_security_group.nat_sg.id]
-
-  user_data = <<-EOF
-    #!/bin/bash
-    apt-get update
-    echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
-    sysctl -p
-    iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-    iptables -A FORWARD -i eth0 -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT
-    iptables -A FORWARD -i eth0 -o eth0 -j ACCEPT
-    iptables-save > /etc/iptables/rules.v4
-    apt-get install -y iptables-persistent
-  EOF
-
-  tags = {
-    Name = "nat-instance"
-  }
-}
-
 # Bastion Host in public subnet
 resource "aws_instance" "bastion" {
   ami           = "ami-0c38b837cd80f13bb" # Ubuntu 24.04 LTS
@@ -125,16 +81,22 @@ resource "aws_instance" "bastion" {
   }
 }
 
-# Private Instance for testing
-resource "aws_instance" "private" {
+# k3s Master Instance in private subnet
+resource "aws_instance" "k3s_master" {
   ami           = "ami-0c38b837cd80f13bb" # Ubuntu 24.04 LTS
-  instance_type = "t2.nano"
+  instance_type = "t2.small"              # Upgraded to 2GB RAM for better k3s performance
   subnet_id     = aws_subnet.private_1.id
   key_name      = aws_key_pair.main.key_name
 
   vpc_security_group_ids = [aws_security_group.private_sg.id]
 
+  user_data = <<-EOF
+    #!/bin/bash
+    apt-get update
+    curl -sfL https://get.k3s.io | sh -
+  EOF
+
   tags = {
-    Name = "private-server"
+    Name = "k3s-master"
   }
 }
