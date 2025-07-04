@@ -1,0 +1,18 @@
+{{- if and .Values.persistence.enabled .Values.persistence.createPV }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Release.Name }}-pv
+  labels:
+    app: jenkins
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+spec:
+  storageClassName: {{ .Values.persistence.storageClass | default "manual" }}
+  capacity:
+    storage: {{ .Values.persistence.size }}
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: {{ .Values.persistence.hostPath | default "/data/jenkins" }}
+{{- end }}
