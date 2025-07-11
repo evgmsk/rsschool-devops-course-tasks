@@ -1,0 +1,43 @@
+image:
+  repository: jenkins/jenkins
+  tag: lts
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 8080
+  nodePort: 30080
+
+persistence:
+  enabled: true
+  createPV: true
+  storageClass: "manual"
+  hostPath: "/data/jenkins"
+  size: "8Gi"
+  accessMode: "ReadWriteOnce"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+securityContext:
+  runAsUser: 1000
+  fsGroup: 1000
+
+admin:
+  name: admin
+  password: password
+  email: admin@example.com
+  
+rbac:
+  create: true
+
+# Job configuration
+job:
+  name: "hello-rs-world"
+  description: "A simple job that prints hello rs world"
+  command: "echo 'hello rs world'"

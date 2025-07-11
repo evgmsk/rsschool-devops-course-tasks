@@ -1,2 +1,6 @@
 .terraform
 .terraform.lock.hcl
+rs-test-*
+manual*/
+*.pem
+terr*
