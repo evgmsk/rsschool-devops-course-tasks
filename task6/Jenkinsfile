@@ -1,0 +1,167 @@
+pipeline {
+    agent any
+    
+    environment {
+        ECR_REGISTRY = '753350392043.dkr.ecr.eu-west-1.amazonaws.com'
+        ECR_REPOSITORY = 'rs-flask-app'
+        AWS_REGION = 'eu-west-1'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        SONAR_PROJECT_KEY = 'flask-app'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Build Application') {
+            steps {
+                script {
+                    echo 'Building Flask application...'
+                    sh '''
+                        python3 -m venv venv
+                        . venv/bin/activate
+                        pip install -r requirements.txt
+                        echo "Application built successfully"
+                    '''
+                }
+            }
+        }
+        
+        stage('Unit Tests') {
+            steps {
+                script {
+                    echo 'Running unit tests...'
+                    sh '''
+                        . venv/bin/activate
+                        python -m pytest tests/ --junitxml=test-results.xml --cov=. --cov-report=xml
+                    '''
+                }
+            }
+            post {
+                always {
+                    publishTestResults testResultsPattern: 'test-results.xml'
+                    publishCoverage adapters: [coberturaAdapter('coverage.xml')], sourceFileResolver: sourceFiles('STORE_LAST_BUILD')
+                }
+            }
+        }
+        
+        stage('Security Check - SonarQube') {
+            steps {
+                script {
+                    withSonarQubeEnv('SonarQube') {
+                        sh '''
+                            sonar-scanner \
+                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                -Dsonar.sources=. \
+                                -Dsonar.host.url=${SONAR_HOST_URL} \
+                                -Dsonar.login=${SONAR_AUTH_TOKEN} \
+                                -Dsonar.python.coverage.reportPaths=coverage.xml \
+                                -Dsonar.python.xunit.reportPath=test-results.xml
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        
+        stage('Build & Push Docker Image') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'task_6'
+                    expression { return params.FORCE_DEPLOY == true }
+                }
+            }
+            steps {
+                script {
+                    echo 'Building and pushing Docker image...'
+                    sh '''
+                        # Login to ECR
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        
+                        # Build image
+                        docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} .
+                        docker tag ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+                        
+                        # Push image
+                        docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+                        
+                        echo "Image pushed: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+                    '''
+                }
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'task_6'
+                    expression { return params.FORCE_DEPLOY == true }
+                }
+            }
+            input {
+                message "Deploy to Kubernetes?"
+                ok "Deploy"
+                parameters {
+                    choice(name: 'ENVIRONMENT', choices: ['dev', 'staging', 'prod'], description: 'Select environment')
+                }
+            }
+            steps {
+                script {
+                    echo "Deploying to ${ENVIRONMENT} environment..."
+                    sh '''
+                        # Update values file with new image tag
+                        sed -i "s/tag: .*/tag: ${IMAGE_TAG}/" helm-chart/values.yaml
+                        
+                        # Deploy with Helm
+                        helm upgrade --install flask-app-${ENVIRONMENT} ./helm-chart \
+                            --namespace flask-app-${ENVIRONMENT} \
+                            --create-namespace \
+                            --set image.tag=${IMAGE_TAG} \
+                            --set environment=${ENVIRONMENT} \
+                            -f ecr-values.yaml
+                        
+                        # Wait for deployment
+                        kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n flask-app-${ENVIRONMENT}
+                        
+                        echo "Deployment completed successfully!"
+                    '''
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo 'Pipeline completed successfully!'
+            emailext (
+                subject: "SUCCESS: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+                body: "Good news! The pipeline completed successfully.",
+                to: "${env.CHANGE_AUTHOR_EMAIL}"
+            )
+        }
+        failure {
+            echo 'Pipeline failed!'
+            emailext (
+                subject: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+                body: "Bad news! The pipeline failed. Please check the logs.",
+                to: "${env.CHANGE_AUTHOR_EMAIL}"
+            )
+        }
+    }
+}

@@ -1,0 +1,51 @@
+# Alternative: Use IAM roles for service accounts (IRSA) instead of access keys
+# This is the recommended approach for AWS EKS clusters
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins-sa
+  namespace: jenkins
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::753350392043:role/ecr-man
+---
+# IAM Role Trust Policy (create this in AWS IAM)
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [
+#     {
+#       "Effect": "Allow",
+#       "Principal": {
+#         "Federated": "arn:aws:iam::753350392043:oidc-provider/oidc.eks.region.amazonaws.com/id/EXAMPLED539D4633E53DE1B716D3041E"
+#       },
+#       "Action": "sts:AssumeRoleWithWebIdentity",
+#       "Condition": {
+#         "StringEquals": {
+#           "oidc.eks.region.amazonaws.com/id/EXAMPLED539D4633E53DE1B716D3041E:sub": "system:serviceaccount:jenkins:jenkins-sa",
+#           "oidc.eks.region.amazonaws.com/id/EXAMPLED539D4633E53DE1B716D3041E:aud": "sts.amazonaws.com"
+#         }
+#       }
+#     }
+#   ]
+# }
+
+# IAM Role Policy (attach to the role)
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [
+#     {
+#       "Effect": "Allow",
+#       "Action": [
+#         "ecr:GetAuthorizationToken",
+#         "ecr:BatchCheckLayerAvailability",
+#         "ecr:GetDownloadUrlForLayer",
+#         "ecr:BatchGetImage",
+#         "ecr:InitiateLayerUpload",
+#         "ecr:UploadLayerPart",
+#         "ecr:CompleteLayerUpload",
+#         "ecr:PutImage"
+#       ],
+#       "Resource": "*"
+#     }
+#   ]
+# }

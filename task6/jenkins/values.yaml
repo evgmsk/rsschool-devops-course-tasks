@@ -1,0 +1,65 @@
+image:
+  repository: jenkins/jenkins
+  tag: lts
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 8080
+  nodePort: 30080
+
+persistence:
+  enabled: true
+  createPV: true
+  storageClass: "manual"
+  hostPath: "/data/jenkins"
+  size: "8Gi"
+  accessMode: "ReadWriteOnce"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+securityContext:
+  runAsUser: 1000
+  fsGroup: 1000
+
+admin:
+  name: admin
+  password: password
+  email: emoskvich@yandex.com
+
+rbac:
+  create: true
+
+# Pipeline configuration
+pipeline:
+  gitUrl: "https://github.com/evgmsk/rsschool-devops-course-tasks.git"
+  
+# SonarQube configuration
+sonarqube:
+  url: "http://sonarqube:9000"
+  # Token will be provided via external secret
+  
+# AWS configuration - using IAM roles instead of access keys
+aws:
+  region: "eu-west-1"
+  # Credentials managed externally via IAM roles or external secrets
+  
+# Jenkins plugins to install
+plugins:
+  - workflow-aggregator
+  - git
+  - docker-workflow
+  - sonar
+  - kubernetes
+  - aws-credentials
+  - pipeline-stage-view
+  - blueocean
+  - email-ext
+  - junit
+  - coverage

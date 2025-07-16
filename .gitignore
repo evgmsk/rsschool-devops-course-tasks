@@ -4,3 +4,7 @@ rs-test-*
 manual*/
 *.pem
 terr*
+
+# Jenkins secrets
+setup-secrets.sh
+setup-secrets.ps1
