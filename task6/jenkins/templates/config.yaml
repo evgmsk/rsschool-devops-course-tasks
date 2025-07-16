@@ -57,7 +57,6 @@ data:
     jobs:
       - script: |
           pipelineJob('flask-app-pipeline') {
-            description('Flask Application CI/CD Pipeline')
             definition {
               cpsScm {
                 scm {
@@ -66,14 +65,11 @@ data:
                       url('{{ .Values.pipeline.gitUrl }}')
                       credentials('github-credentials')
                     }
-                    branches('*/main', '*/task_6')
+                    branch('*/task_6')
                   }
                 }
                 scriptPath('task6/Jenkinsfile')
               }
-            }
-            triggers {
-              scm('H/5 * * * *')
             }
           }
     

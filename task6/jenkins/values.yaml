@@ -63,3 +63,5 @@ plugins:
   - email-ext
   - junit
   - coverage
+  - job-dsl
+  - configuration-as-code

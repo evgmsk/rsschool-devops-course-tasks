@@ -7,7 +7,17 @@ metadata:
     chart: {{ .Chart.Name }}-{{ .Chart.Version }}
     release: {{ .Release.Name }}
 data:
-  plugins.txt: |-
-    {{- range .Values.plugins }}
-    {{ . }}
-    {{- end }}
+  plugins.txt: |
+    workflow-aggregator
+    git
+    docker-workflow
+    sonar
+    kubernetes
+    aws-credentials
+    pipeline-stage-view
+    blueocean
+    email-ext
+    junit
+    coverage
+    job-dsl
+    configuration-as-code

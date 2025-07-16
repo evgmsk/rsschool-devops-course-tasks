@@ -64,7 +64,8 @@ spec:
           value: "/var/jenkins_home/casc_configs"
         - name: JAVA_OPTS
           value: "-Djenkins.install.runSetupWizard=false"
-
+        - name: JENKINS_UC_DOWNLOAD
+          value: "https://updates.jenkins.io"
         - name: SONAR_TOKEN
           valueFrom:
             secretKeyRef:
@@ -89,6 +90,9 @@ spec:
         - name: jenkins-config
           mountPath: /var/jenkins_home/casc_configs/jenkins.yaml
           subPath: jenkins.yaml
+        - name: plugins-config
+          mountPath: /usr/share/jenkins/ref/plugins.txt
+          subPath: plugins.txt
         - name: docker-sock
           mountPath: /var/run/docker.sock
       volumes:
@@ -102,6 +106,9 @@ spec:
       - name: jenkins-config
         configMap:
           name: {{ .Release.Name }}-jenkins-config
+      - name: plugins-config
+        configMap:
+          name: {{ .Release.Name }}-plugins
       - name: docker-sock
         hostPath:
           path: /var/run/docker.sock
