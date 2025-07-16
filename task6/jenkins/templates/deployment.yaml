@@ -33,6 +33,23 @@ spec:
         volumeMounts:
         - name: jenkins-home
           mountPath: /var/jenkins_home
+      - name: install-tools
+        image: alpine:latest
+        command: ["sh", "-c"]
+        args:
+        - |
+          apk add --no-cache python3 py3-pip python3-dev gcc musl-dev
+          pip3 install --upgrade pip
+          pip3 install awscli
+          ln -sf /usr/bin/python3 /usr/local/bin/python
+          cp -r /usr/bin/python* /shared/
+          cp -r /usr/lib/python* /shared/
+          cp /usr/bin/aws /shared/
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: shared-tools
+          mountPath: /shared
       containers:
       - name: jenkins
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}

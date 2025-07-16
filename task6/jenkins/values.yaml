@@ -1,6 +1,6 @@
 image:
   repository: jenkins/jenkins
-  tag: lts
+  tag: lts-alpine
   pullPolicy: IfNotPresent
 
 service:
