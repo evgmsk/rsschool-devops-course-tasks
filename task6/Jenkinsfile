@@ -21,7 +21,7 @@ pipeline {
                 script {
                     echo 'Building Flask application...'
                     sh '''
-                        python3 -m venv venv
+                        python -m venv venv
                         . venv/bin/activate
                         pip install -r requirements.txt
                         echo "Application built successfully"
@@ -149,19 +149,9 @@ pipeline {
         }
         success {
             echo 'Pipeline completed successfully!'
-            emailext (
-                subject: "SUCCESS: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: "Good news! The pipeline completed successfully.",
-                to: "${env.CHANGE_AUTHOR_EMAIL}"
-            )
         }
         failure {
             echo 'Pipeline failed!'
-            emailext (
-                subject: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: "Bad news! The pipeline failed. Please check the logs.",
-                to: "${env.CHANGE_AUTHOR_EMAIL}"
-            )
         }
     }
 }
