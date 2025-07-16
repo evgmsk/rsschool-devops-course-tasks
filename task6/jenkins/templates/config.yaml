@@ -55,7 +55,7 @@ data:
               description: "GitHub credentials"
       
     jobs:
-      - script: >
+      - script: |
           pipelineJob('flask-app-pipeline') {
             description('Flask Application CI/CD Pipeline')
             definition {
@@ -66,11 +66,10 @@ data:
                       url('{{ .Values.pipeline.gitUrl }}')
                       credentials('github-credentials')
                     }
-                    branch('*/main')
-                    branch('*/task_6')
+                    branches('*/main', '*/task_6')
                   }
                 }
-                scriptPath('task_6/Jenkinsfile')
+                scriptPath('task6/Jenkinsfile')
               }
             }
             triggers {
