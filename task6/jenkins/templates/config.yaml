@@ -70,7 +70,7 @@ data:
                     branch('*/task_6')
                   }
                 }
-                scriptPath('Jenkinsfile')
+                scriptPath('task_6/Jenkinsfile')
               }
             }
             triggers {
