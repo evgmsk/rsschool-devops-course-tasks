@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'python:3.9-alpine'
-            args '-v /var/run/docker.sock:/var/run/docker.sock -u root'
-        }
-    }
+    agent any
     
     environment {
         ECR_REGISTRY = '753350392043.dkr.ecr.eu-west-1.amazonaws.com'
@@ -21,19 +16,47 @@ pipeline {
             }
         }
         
+        stage('Setup Environment') {
+            steps {
+                script {
+                    echo 'Installing required tools...'
+                    sh '''
+                        # Install Python if not available
+                        if ! command -v python3 &> /dev/null; then
+                            echo "Python3 not found, installing..."
+                            apt-get update && apt-get install -y python3 python3-pip python3-venv
+                        fi
+                        
+                        # Install AWS CLI
+                        if ! command -v aws &> /dev/null; then
+                            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                            unzip awscliv2.zip
+                            ./aws/install
+                        fi
+                        
+                        # Install kubectl
+                        if ! command -v kubectl &> /dev/null; then
+                            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                            chmod +x kubectl && mv kubectl /usr/local/bin/
+                        fi
+                        
+                        # Install helm
+                        if ! command -v helm &> /dev/null; then
+                            curl https://get.helm.sh/helm-v3.12.0-linux-amd64.tar.gz | tar xz
+                            mv linux-amd64/helm /usr/local/bin/
+                        fi
+                    '''
+                }
+            }
+        }
+        
         stage('Build Application') {
             steps {
                 script {
                     echo 'Building Flask application...'
                     sh '''
-                        # Install required tools
-                        apk add --no-cache docker-cli aws-cli curl
-                        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                        chmod +x kubectl && mv kubectl /usr/local/bin/
-                        curl https://get.helm.sh/helm-v3.12.0-linux-amd64.tar.gz | tar xz && mv linux-amd64/helm /usr/local/bin/
-                        
                         # Build application
-                        python -m venv venv
+                        python3 -m venv venv
                         . venv/bin/activate
                         pip install -r task6/requirements.txt
                         echo "Application built successfully"
