@@ -21,29 +21,21 @@ pipeline {
                 script {
                     echo 'Installing required tools...'
                     sh '''
-                        # Install Python if not available
-                        if ! command -v python3 &> /dev/null; then
-                            echo "Python3 not found, installing..."
-                            sudo apt-get update && sudo apt-get install -y python3 python3-pip python3-venv
-                        fi
+                        # Check available tools
+                        echo "Python version:"
+                        python --version || python3 --version || echo "Python not available"
                         
-                        # Install AWS CLI with pip (simpler approach)
-                        if ! command -v aws &> /dev/null; then
-                            pip3 install --user awscli
-                            export PATH=$PATH:~/.local/bin
-                        fi
+                        echo "\nAWS CLI version:"
+                        aws --version || echo "AWS CLI not available"
                         
-                        # Install kubectl
-                        if ! command -v kubectl &> /dev/null; then
-                            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                            chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-                        fi
+                        echo "\nDocker version:"
+                        docker --version || echo "Docker not available"
                         
-                        # Install helm
-                        if ! command -v helm &> /dev/null; then
-                            curl https://get.helm.sh/helm-v3.12.0-linux-amd64.tar.gz | tar xz
-                            sudo mv linux-amd64/helm /usr/local/bin/
-                        fi
+                        echo "\nKubectl version:"
+                        kubectl version --client || echo "Kubectl not available"
+                        
+                        echo "\nHelm version:"
+                        helm version || echo "Helm not available"
                     '''
                 }
             }
@@ -54,10 +46,16 @@ pipeline {
                 script {
                     echo 'Building Flask application...'
                     sh '''
-                        # Build application
-                        python3 -m venv venv
-                        . venv/bin/activate
-                        pip install -r task6/requirements.txt
+                        # Build application using available Python
+                        if command -v python3 &> /dev/null; then
+                            PYTHON_CMD="python3"
+                        else
+                            PYTHON_CMD="python"
+                        fi
+                        
+                        echo "Using $PYTHON_CMD for build"
+                        cd task6
+                        $PYTHON_CMD -m pip install -r requirements.txt
                         echo "Application built successfully"
                     '''
                 }
@@ -69,9 +67,14 @@ pipeline {
                 script {
                     echo 'Running unit tests...'
                     sh '''
-                        . venv/bin/activate
+                        if command -v python3 &> /dev/null; then
+                            PYTHON_CMD="python3"
+                        else
+                            PYTHON_CMD="python"
+                        fi
+                        
                         cd task6
-                        python -m pytest tests/ --junitxml=test-results.xml --cov=. --cov-report=xml
+                        $PYTHON_CMD -m pytest tests/ --junitxml=test-results.xml --cov=. --cov-report=xml
                     '''
                 }
             }
@@ -121,9 +124,6 @@ pipeline {
                 script {
                     echo 'Building and pushing Docker image...'
                     sh '''
-                        # Ensure AWS CLI is in PATH
-                        export PATH=$PATH:~/.local/bin
-                        
                         # Login to ECR
                         aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
                         
