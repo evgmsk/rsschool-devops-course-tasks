@@ -21,21 +21,28 @@ pipeline {
                 script {
                     echo 'Installing required tools...'
                     sh '''
-                        # Check available tools
-                        echo "Python version:"
-                        python --version || python3 --version || echo "Python not available"
+                        # Install minimal required tools
+                        apt-get update
+                        apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release python3 python3-pip
                         
-                        echo "\nAWS CLI version:"
-                        aws --version || echo "AWS CLI not available"
+                        # Install Docker
+                        curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+                        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+                        apt-get update
+                        apt-get install -y docker-ce docker-ce-cli containerd.io
                         
-                        echo "\nDocker version:"
-                        docker --version || echo "Docker not available"
+                        # Install AWS CLI
+                        pip3 install awscli
                         
-                        echo "\nKubectl version:"
-                        kubectl version --client || echo "Kubectl not available"
+                        # Install kubectl
+                        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                        chmod +x kubectl
+                        mv kubectl /usr/local/bin/
                         
-                        echo "\nHelm version:"
-                        helm version || echo "Helm not available"
+                        # Install Helm
+                        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+                        chmod 700 get_helm.sh
+                        ./get_helm.sh
                     '''
                 }
             }
@@ -46,16 +53,9 @@ pipeline {
                 script {
                     echo 'Building Flask application...'
                     sh '''
-                        # Build application using available Python
-                        if command -v python3 &> /dev/null; then
-                            PYTHON_CMD="python3"
-                        else
-                            PYTHON_CMD="python"
-                        fi
-                        
-                        echo "Using $PYTHON_CMD for build"
+                        # Build application
                         cd task6
-                        $PYTHON_CMD -m pip install -r requirements.txt
+                        python3 -m pip install -r requirements.txt
                         echo "Application built successfully"
                     '''
                 }
@@ -67,14 +67,9 @@ pipeline {
                 script {
                     echo 'Running unit tests...'
                     sh '''
-                        if command -v python3 &> /dev/null; then
-                            PYTHON_CMD="python3"
-                        else
-                            PYTHON_CMD="python"
-                        fi
-                        
                         cd task6
-                        $PYTHON_CMD -m pytest tests/ --junitxml=test-results.xml --cov=. --cov-report=xml
+                        python3 -m pip install pytest pytest-cov
+                        python3 -m pytest tests/ --junitxml=test-results.xml --cov=. --cov-report=xml
                     '''
                 }
             }
