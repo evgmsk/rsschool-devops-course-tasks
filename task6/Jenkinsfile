@@ -24,26 +24,25 @@ pipeline {
                         # Install Python if not available
                         if ! command -v python3 &> /dev/null; then
                             echo "Python3 not found, installing..."
-                            apt-get update && apt-get install -y python3 python3-pip python3-venv
+                            sudo apt-get update && sudo apt-get install -y python3 python3-pip python3-venv
                         fi
                         
-                        # Install AWS CLI
+                        # Install AWS CLI with pip (simpler approach)
                         if ! command -v aws &> /dev/null; then
-                            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-                            unzip awscliv2.zip
-                            ./aws/install
+                            pip3 install --user awscli
+                            export PATH=$PATH:~/.local/bin
                         fi
                         
                         # Install kubectl
                         if ! command -v kubectl &> /dev/null; then
                             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                            chmod +x kubectl && mv kubectl /usr/local/bin/
+                            chmod +x kubectl && sudo mv kubectl /usr/local/bin/
                         fi
                         
                         # Install helm
                         if ! command -v helm &> /dev/null; then
                             curl https://get.helm.sh/helm-v3.12.0-linux-amd64.tar.gz | tar xz
-                            mv linux-amd64/helm /usr/local/bin/
+                            sudo mv linux-amd64/helm /usr/local/bin/
                         fi
                     '''
                 }
@@ -122,6 +121,9 @@ pipeline {
                 script {
                     echo 'Building and pushing Docker image...'
                     sh '''
+                        # Ensure AWS CLI is in PATH
+                        export PATH=$PATH:~/.local/bin
+                        
                         # Login to ECR
                         aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
                         
