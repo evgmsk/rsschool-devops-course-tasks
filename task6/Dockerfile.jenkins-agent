@@ -12,14 +12,16 @@ RUN apk add --no-cache \
     docker-cli \
     nodejs \
     npm \
-    unzip
+    unzip \
+    libstdc++ \
+    shadow
 
-# Create Python virtual environment for tools
+# Optional: Create Python virtual environment for tools
 ENV VIRTUAL_ENV=/opt/venv
 RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Install pytest inside virtualenv
+# Install Python tools
 RUN pip install --no-cache-dir pytest
 
 # Install AWS CLI v2
@@ -32,7 +34,7 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
 RUN curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
 # Install kubectl
-RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
+RUN curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
     rm kubectl
 
@@ -44,7 +46,7 @@ RUN curl -L -o sonar-scanner.zip https://binaries.sonarsource.com/Distribution/s
 
 ENV PATH="/opt/sonar-scanner-5.0.1.3006-linux/bin:${PATH}"
 
-# Optional placeholders for Kubernetes-injected secrets (do NOT hardcode values!)
+# Set environment variables for runtime (can be overridden by Kubernetes secrets)
 ENV GITHUB_USERNAME=""
 ENV GITHUB_TOKEN=""
 ENV SONAR_TOKEN=""

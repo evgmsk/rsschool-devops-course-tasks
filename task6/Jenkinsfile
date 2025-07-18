@@ -1,95 +1,58 @@
 pipeline {
-    agent any
-    
+    agent {
+        docker {
+            image '753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
+        }
+    }
+
     environment {
         ECR_REGISTRY = '753350392043.dkr.ecr.eu-west-1.amazonaws.com'
         ECR_REPOSITORY = 'rs-flask-app'
         AWS_REGION = 'eu-west-1'
         IMAGE_TAG = "${BUILD_NUMBER}"
         SONAR_PROJECT_KEY = 'flask-app'
+        APP_DIR = 'task6'
     }
-    
+
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-        
-        stage('Setup Environment') {
-            steps {
-                script {
-                    echo 'Installing required tools...'
-                    sh '''
-                        # Install minimal required tools
-                        apt-get update
-                        apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release python3 python3-pip
-                        
-                        # Install Docker
-                        curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-                        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-                        apt-get update
-                        apt-get install -y docker-ce docker-ce-cli containerd.io
-                        
-                        # Install AWS CLI
-                        pip3 install awscli
-                        
-                        # Install kubectl
-                        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                        chmod +x kubectl
-                        mv kubectl /usr/local/bin/
-                        
-                        # Install Helm
-                        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-                        chmod 700 get_helm.sh
-                        ./get_helm.sh
-                    '''
-                }
-            }
-        }
-        
+
         stage('Build Application') {
             steps {
-                script {
-                    echo 'Building Flask application...'
+                dir("${APP_DIR}") {
                     sh '''
-                        # Build application
-                        cd task6
-                        python3 -m pip install -r requirements.txt
-                        echo "Application built successfully"
+                        echo "Installing Python dependencies..."
+                        pip install -r requirements.txt
                     '''
                 }
             }
         }
-        
+
         stage('Unit Tests') {
             steps {
-                script {
-                    echo 'Running unit tests...'
+                dir("${APP_DIR}") {
                     sh '''
-                        if command -v python3 &> /dev/null; then
-                            PYTHON_CMD="python3"
-                        else
-                            PYTHON_CMD="python"
-                        fi
-                        
-                        cd task6
-                        $PYTHON_CMD -m pytest tests/ --junitxml=test-results.xml --cov=. --cov-report=xml
+                        pytest tests/ --junitxml=test-results.xml --cov=. --cov-report=xml
                     '''
                 }
             }
             post {
                 always {
-                    publishTestResults testResultsPattern: 'test-results.xml'
-                    publishCoverage adapters: [coberturaAdapter('coverage.xml')], sourceFileResolver: sourceFiles('STORE_LAST_BUILD')
+                    publishTestResults testResultsPattern: "${APP_DIR}/test-results.xml"
+                    publishCoverage adapters: [coberturaAdapter("${APP_DIR}/coverage.xml")], sourceFileResolver: sourceFiles('STORE_LAST_BUILD')
                 }
             }
         }
-        
+
         stage('Security Check - SonarQube') {
             steps {
-                script {
-                    withSonarQubeEnv('SonarQube') {
+                withSonarQubeEnv('SonarQube') {
+                    dir("${APP_DIR}") {
                         sh '''
                             sonar-scanner \
                                 -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
@@ -103,7 +66,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Quality Gate') {
             steps {
                 timeout(time: 1, unit: 'HOURS') {
@@ -111,7 +74,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Build & Push Docker Image') {
             when {
                 anyOf {
@@ -121,27 +84,23 @@ pipeline {
                 }
             }
             steps {
-                script {
-                    echo 'Building and pushing Docker image...'
+                dir("${APP_DIR}") {
                     sh '''
-                        # Login to ECR
+                        echo "Logging in to ECR..."
                         aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
-                        
-                        # Build image
-                        cd task6
+
+                        echo "Building Docker image..."
                         docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} .
                         docker tag ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
-                        
-                        # Push image
+
+                        echo "Pushing image to ECR..."
                         docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
                         docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
-                        
-                        echo "Image pushed: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
                     '''
                 }
             }
         }
-        
+
         stage('Deploy to Kubernetes') {
             when {
                 anyOf {
@@ -159,38 +118,34 @@ pipeline {
             }
             steps {
                 script {
-                    echo "Deploying to ${ENVIRONMENT} environment..."
-                    sh '''
-                        # Update values file with new image tag
+                    def ns = "flask-app-${ENVIRONMENT}"
+                    echo "Deploying to namespace: ${ns}"
+                    sh """
                         sed -i "s/tag: .*/tag: ${IMAGE_TAG}/" helm-chart/values.yaml
-                        
-                        # Deploy with Helm
+
                         helm upgrade --install flask-app-${ENVIRONMENT} ./helm-chart \
-                            --namespace flask-app-${ENVIRONMENT} \
+                            --namespace ${ns} \
                             --create-namespace \
                             --set image.tag=${IMAGE_TAG} \
                             --set environment=${ENVIRONMENT} \
                             -f ecr-values.yaml
-                        
-                        # Wait for deployment
-                        kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n flask-app-${ENVIRONMENT}
-                        
-                        echo "Deployment completed successfully!"
-                    '''
+
+                        kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n ${ns}
+                    """
                 }
             }
         }
     }
-    
+
     post {
         always {
             cleanWs()
         }
         success {
-            echo 'Pipeline completed successfully!'
+            echo '✅ Pipeline completed successfully!'
         }
         failure {
-            echo 'Pipeline failed!'
+            echo '❌ Pipeline failed!'
         }
     }
 }
