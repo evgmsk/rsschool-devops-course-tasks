@@ -9,12 +9,16 @@ metadata:
   labels:
     jenkins-agent: "true"
 spec:
+  serviceAccountName: jenkins
   imagePullSecrets:
     - name: ecr-credentials
   containers:
     - name: jnlp
       image: 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
       imagePullPolicy: Always
+      command:
+      - /usr/local/bin/jenkins-agent
+      tty: true
       volumeMounts:
         - mountPath: /home/jenkins/agent
           name: workspace-volume
