@@ -27,6 +27,7 @@ controller:
     imagePullSecretName: ecr-registry-secret
     alwaysPullImage: true
     customJenkinsLabels: ecr-python-agent
+
   additionalAgents:
     ecr-python-agent:
       customJenkinsLabels: ecr-python-agent
@@ -38,6 +39,19 @@ controller:
             jenkins/label: ecr-python-agent
         spec:
           containers:
+            - name: jnlp
+              image: jenkins/inbound-agent:latest
+              imagePullPolicy: IfNotPresent
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              volumeMounts:
+                - name: workspace-volume
+                  mountPath: /home/jenkins/agent
             - name: tools
               image: 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
               imagePullPolicy: Always
@@ -56,37 +70,46 @@ controller:
                 limits:
                   cpu: 500m
                   memory: 512Mi
+              volumeMounts:
+                - name: workspace-volume
+                  mountPath: /home/jenkins/agent
+          volumes:
+            - name: workspace-volume
+              emptyDir: {}
           restartPolicy: Never
-          
+
   JCasC:
+    overwriteConfiguration: false
     configScripts:
-      disableDefaultAgent:
-        inline: |
-          jenkins:
-            clouds:
-              - kubernetes:
-                  podRetention: Never
-                  templates:
-                    - name: "ecr-python-agent"
-                      label: "ecr-python-agent"
-                      containers:
-                        - name: tools
-                          image: 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
-                          ttyEnabled: true
-                          command: ["cat"]
-                          envVars:
-                            - envVar:
-                                key: SONAR_AUTH_TOKEN
-                                valueFrom:
-                                  secretKeyRef:
-                                    name: jenkins-sonar-token
-                                    key: SONAR_AUTH_TOKEN
-                            - envVar:
-                                key: GITHUB_TOKEN
-                                valueFrom:
-                                  secretKeyRef:
-                                    name: github-credentials
-                                    key: GITHUB_TOKEN
+      disable-default-agent: |
+        jenkins:
+          clouds:
+            - kubernetes:
+                name: kubernetes
+                podRetention: Never
+                templates:
+                  - name: ecr-python-agent
+                    label: ecr-python-agent
+                    containers:
+                      - name: tools
+                        image: 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
+                        ttyEnabled: true
+                        command:
+                          - cat
+                        envVars:
+                          - envVar:
+                              key: SONAR_AUTH_TOKEN
+                              valueFrom:
+                                secretKeyRef:
+                                  name: jenkins-sonar-token
+                                  key: SONAR_AUTH_TOKEN
+                          - envVar:
+                              key: GITHUB_TOKEN
+                              valueFrom:
+                                secretKeyRef:
+                                  name: github-credentials
+                                  key: GITHUB_TOKEN
+
 rbac:
   create: true
 
