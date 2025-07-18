@@ -164,13 +164,14 @@ pipeline {
                 script {
                     def ns = "flask-app-${ENVIRONMENT}"
                     echo "Deploying to namespace: ${ns}"
-                    sh """
+                    sh '''
                         # Install kubectl
                         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
                         chmod +x kubectl && mv kubectl /usr/local/bin/
                         
                         # Install Helm
                         curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | sh
+                    sh '''
                         sed -i "s/tag: .*/tag: ${IMAGE_TAG}/" helm-chart/values.yaml
 
                         helm upgrade --install flask-app-${ENVIRONMENT} ./helm-chart \
@@ -181,7 +182,7 @@ pipeline {
                             -f ecr-values.yaml
 
                         kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n ${ns}
-                    """
+                    '''
                 }
             }
         }
