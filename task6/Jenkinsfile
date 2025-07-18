@@ -62,14 +62,14 @@ pipeline {
         stage('Build Application') {
             steps {
                 dir("${APP_DIR}") {
-                    sh '''
-                        echo "Installing required tools..."
+                    sh """
+                        echo \"Installing required tools...\"
                         apk add --no-cache docker-cli curl git
                         
-                        echo "Installing Python dependencies..."
+                        echo \"Installing Python dependencies...\"
                         pip install -r requirements.txt
                         pip install pytest pytest-cov
-                    '''
+                    """
                 }
             }
         }
@@ -77,9 +77,9 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 dir("${APP_DIR}") {
-                    sh '''
+                    sh """
                         pytest tests/ --junitxml=test-results.xml --cov=. --cov-report=xml
-                    '''
+                    """
                 }
             }
             post {
@@ -94,15 +94,15 @@ pipeline {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     dir("${APP_DIR}") {
-                        sh '''
-                            sonar-scanner \
-                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=${SONAR_HOST_URL} \
-                                -Dsonar.login=${SONAR_AUTH_TOKEN} \
-                                -Dsonar.python.coverage.reportPaths=coverage.xml \
+                        sh """
+                            sonar-scanner \\
+                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \\
+                                -Dsonar.sources=. \\
+                                -Dsonar.host.url=${SONAR_HOST_URL} \\
+                                -Dsonar.login=${SONAR_AUTH_TOKEN} \\
+                                -Dsonar.python.coverage.reportPaths=coverage.xml \\
                                 -Dsonar.python.xunit.reportPath=test-results.xml
-                        '''
+                        """
                     }
                 }
             }
@@ -126,21 +126,21 @@ pipeline {
             }
             steps {
                 dir("${APP_DIR}") {
-                    sh '''
-                        echo "Installing AWS CLI..."
+                    sh """
+                        echo \"Installing AWS CLI...\"
                         pip install awscli
                         
-                        echo "Logging in to ECR..."
+                        echo \"Logging in to ECR...\"
                         aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
-                        echo "Building Docker image..."
+                        echo \"Building Docker image...\"
                         docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} .
                         docker tag ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
 
-                        echo "Pushing image to ECR..."
+                        echo \"Pushing image to ECR...\"
                         docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
                         docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
-                    '''
+                    """
                 }
             }
         }
@@ -164,25 +164,25 @@ pipeline {
                 script {
                     def ns = "flask-app-${ENVIRONMENT}"
                     echo "Deploying to namespace: ${ns}"
-                    sh '''
+                    sh """
                         # Install kubectl
-                        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                        curl -LO \"https://dl.k8s.io/release/\$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl\"  
                         chmod +x kubectl && mv kubectl /usr/local/bin/
                         
                         # Install Helm
                         curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | sh
-                    sh '''
-                        sed -i "s/tag: .*/tag: ${IMAGE_TAG}/" helm-chart/values.yaml
+                        
+                        sed -i \"s/tag: .*/tag: ${IMAGE_TAG}/\" helm-chart/values.yaml
 
-                        helm upgrade --install flask-app-${ENVIRONMENT} ./helm-chart \
-                            --namespace ${ns} \
-                            --create-namespace \
-                            --set image.tag=${IMAGE_TAG} \
-                            --set environment=${ENVIRONMENT} \
+                        helm upgrade --install flask-app-${ENVIRONMENT} ./helm-chart \\
+                            --namespace ${ns} \\
+                            --create-namespace \\
+                            --set image.tag=${IMAGE_TAG} \\
+                            --set environment=${ENVIRONMENT} \\
                             -f ecr-values.yaml
 
                         kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n ${ns}
-                    '''
+                    """
                 }
             }
         }
