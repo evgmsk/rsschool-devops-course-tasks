@@ -63,7 +63,8 @@ pipeline {
                 dir("${APP_DIR}") {
                     sh """
                         echo \"Installing Python dependencies...\"
-                        pip install flask pytest pytest-cov
+                        pip install --user flask pytest pytest-cov
+                        export PATH=$PATH:~/.local/bin
                     """
                 }
             }
