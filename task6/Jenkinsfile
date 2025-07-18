@@ -11,7 +11,10 @@ pipeline {
             spec:
               containers:
               - name: jnlp
-                image: jenkins/inbound-agent:alpine-jdk17
+                image: python:3.9-alpine
+                command:
+                - cat
+                tty: true
                 volumeMounts:
                 - mountPath: /home/jenkins/agent
                   name: workspace-volume
@@ -60,8 +63,12 @@ pipeline {
             steps {
                 dir("${APP_DIR}") {
                     sh '''
+                        echo "Installing required tools..."
+                        apk add --no-cache docker-cli curl git
+                        
                         echo "Installing Python dependencies..."
                         pip install -r requirements.txt
+                        pip install pytest pytest-cov
                     '''
                 }
             }
@@ -120,6 +127,9 @@ pipeline {
             steps {
                 dir("${APP_DIR}") {
                     sh '''
+                        echo "Installing AWS CLI..."
+                        pip install awscli
+                        
                         echo "Logging in to ECR..."
                         aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
@@ -155,6 +165,12 @@ pipeline {
                     def ns = "flask-app-${ENVIRONMENT}"
                     echo "Deploying to namespace: ${ns}"
                     sh """
+                        # Install kubectl
+                        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                        chmod +x kubectl && mv kubectl /usr/local/bin/
+                        
+                        # Install Helm
+                        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | sh
                         sed -i "s/tag: .*/tag: ${IMAGE_TAG}/" helm-chart/values.yaml
 
                         helm upgrade --install flask-app-${ENVIRONMENT} ./helm-chart \
