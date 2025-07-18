@@ -1,8 +1,27 @@
 pipeline {
+
     agent {
         kubernetes {
-            inheritFrom 'ecr-python-agent'   // 👈 Inherit custom Helm pod template
-            defaultContainer 'tools'         // 👈 Set default container
+            label 'ecr-python-agent'
+            defaultContainer 'tools'
+            yaml """
+            apiVersion: v1
+            kind: Pod
+            spec:
+            containers:
+                - name: tools
+                image: 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
+                command:
+                    - cat
+                tty: true
+                volumeMounts:
+                    - mountPath: /home/jenkins/agent
+                    name: workspace-volume
+            volumes:
+                - name: workspace-volume
+                emptyDir: {}
+            restartPolicy: Never
+            """
         }
     }
 
