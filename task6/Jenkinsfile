@@ -1,7 +1,30 @@
 pipeline {
 
    agent {
-        label 'jenkins-agent'
+        kubernetes {
+            yaml """
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                jenkins-agent: "true"
+            spec:
+              containers:
+              - name: jnlp
+                image: jenkins/inbound-agent:alpine-jdk17
+                volumeMounts:
+                - mountPath: /home/jenkins/agent
+                  name: workspace-volume
+                - mountPath: /var/run/docker.sock
+                  name: docker-sock
+              volumes:
+              - name: workspace-volume
+                emptyDir: {}
+              - name: docker-sock
+                hostPath:
+                  path: /var/run/docker.sock
+            """
+        }
     }
 
     environment {
