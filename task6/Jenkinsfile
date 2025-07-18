@@ -1,12 +1,13 @@
 pipeline {
     agent {
-        docker {
-            image '753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
+        kubernetes {
+            label 'ecr-python-agent'
+            defaultContainer 'jnlp'
         }
     }
 
     environment {
+        IMAGE_NAME = "753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest"
         ECR_REGISTRY = '753350392043.dkr.ecr.eu-west-1.amazonaws.com'
         ECR_REPOSITORY = 'rs-flask-app'
         AWS_REGION = 'eu-west-1'
@@ -16,6 +17,13 @@ pipeline {
     }
 
     stages {
+        stage('Check Docker image') {
+            steps {
+                container('jnlp') {
+                    sh 'docker inspect -f . $IMAGE_NAME || docker pull $IMAGE_NAME'
+                }
+            }
+        }
         stage('Checkout') {
             steps {
                 checkout scm
