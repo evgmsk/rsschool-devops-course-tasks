@@ -1,6 +1,0 @@
-apiVersion: v2
-name: jenkins
-description: A Helm chart for Jenkins on Kubernetes
-type: application
-version: 0.1.0
-appVersion: "2.504.3"

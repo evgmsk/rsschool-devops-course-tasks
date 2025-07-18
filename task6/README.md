@@ -6,19 +6,7 @@ This directory contains a complete Jenkins setup with Helm chart for running CI/
 
 ```
 task6/
-├── jenkins/                    # Jenkins Helm chart
-│   ├── templates/
-│   │   ├── config.yaml        # Jenkins Configuration as Code
-│   │   ├── deployment.yaml    # Jenkins deployment
-│   │   ├── service.yaml       # Jenkins service
-│   │   ├── pv.yaml           # Persistent volume
-│   │   ├── pvc.yaml          # Persistent volume claim
-│   │   ├── rbac.yaml         # RBAC configuration
-│   │   ├── secret.yaml       # Admin credentials
-│   │   ├── plugins.yaml      # Plugin configuration
-│   │   └── credentials.yaml  # AWS/SonarQube credentials
-│   ├── values.yaml           # Configuration values
-│   └── Chart.yaml           # Chart metadata
+|── values.yaml           # Configuration values
 ├── flask-app/              # Flask app Helm chart for deployment
 ├── setup-iam-role.yaml      # IAM role for service accounts (EKS)
 ├── Jenkinsfile              # Pipeline definition
@@ -83,7 +71,19 @@ sonarqube:
   url: "http://your-sonarqube-server:9000"
 ```
 
-### 2. Deploy Jenkins
+### 2. Build and Deploy Jenkins Agent
+
+```bash
+# Build the custom Jenkins agent image
+docker build -t jenkins-agent:latest -f Dockerfile.jenkins-agent .
+
+# Push to your registry (example for ECR)
+aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin 753350392043.dkr.ecr.eu-west-1.amazonaws.com
+docker tag jenkins-agent:latest 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
+docker push 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
+```
+
+### 3. Deploy Jenkins
 
 ```bash
 # Create namespace
@@ -96,7 +96,7 @@ helm install rs-jenkins ./jenkins --namespace jenkins --create-namespace
 kubectl get pods -n jenkins
 ```
 
-### 3. Access Jenkins
+### 4. Access Jenkins and Configure Agent
 
 ```bash
 # Get Jenkins URL
@@ -110,6 +110,20 @@ Login with:
 - Username: `admin`
 - Password: `password` (or value from values.yaml)
 
+Configure the custom agent:
+1. Go to **Manage Jenkins** → **Manage Nodes and Clouds**
+2. Click **Configure Clouds** → **Add a new cloud** → **Kubernetes**
+3. Configure the Kubernetes cloud with:
+   - **Name**: `kubernetes`
+   - **Kubernetes URL**: `https://kubernetes.default.svc`
+   - **Jenkins URL**: `http://rs-jenkins.jenkins.svc.cluster.local:8080`
+   - **Pod Templates** → **Add Pod Template**:
+     - **Name**: `jenkins-agent`
+     - **Namespace**: `jenkins`
+     - **Container Template**:
+       - **Name**: `jnlp`
+       - **Docker image**: `753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest`
+
 ## Pipeline Features
 
 The Jenkins pipeline includes:
@@ -122,15 +136,60 @@ The Jenkins pipeline includes:
 6. **Build & Push Docker Image**: Build Docker image and push to AWS ECR
 7. **Deploy to Kubernetes**: Deploy using Helm flask-app chart with environment selection
 
+## Custom Jenkins Agent
+
+The pipeline uses a custom Jenkins agent with pre-installed tools:
+
+```bash
+# Build the custom agent image
+docker build -t jenkins-agent:latest -f Dockerfile.jenkins-agent .
+```
+
+The custom agent includes:
+- Python 3 with pytest
+- Docker CLI
+- AWS CLI
+- kubectl and Helm
+- SonarScanner
+- Node.js and npm
+
 ## Pipeline Configuration
 
 The Jenkinsfile defines a pipeline with:
 
+- **Custom agent**: Uses the pre-built Jenkins agent with all required tools
 - **Branch-based deployment**: Docker build/push on main and task_6 branches or FORCE_DEPLOY=true
 - **Manual approval**: Deployment stage requires manual confirmation
 - **Environment selection**: Choose dev/staging/prod during deployment
 - **Helm deployment**: Uses local ./helm-chart (flask-app chart)
 - **Email notifications**: On success/failure
+
+### Jenkinsfile Agent Configuration
+
+```groovy
+pipeline {
+    agent {
+        kubernetes {
+            yaml """
+            apiVersion: v1
+            kind: Pod
+            spec:
+              containers:
+              - name: jnlp
+                image: 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
+                volumeMounts:
+                - name: docker-sock
+                  mountPath: /var/run/docker.sock
+              volumes:
+              - name: docker-sock
+                hostPath:
+                  path: /var/run/docker.sock
+            """
+        }
+    }
+    // ... rest of pipeline
+}
+```
 
 ## Required Jenkins Plugins
 
@@ -188,6 +247,18 @@ kubectl get pv,pvc -n jenkins
 ```bash
 # Ensure Docker socket is mounted
 kubectl describe pod -n jenkins $(kubectl get pods -n jenkins -o name)
+```
+
+### Agent Issues
+```bash
+# Check if agent can connect to Jenkins
+kubectl logs -n jenkins $(kubectl get pods -n jenkins -l jenkins=agent -o name)
+
+# Verify agent image is available
+docker pull 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
+
+# Check ECR permissions
+aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin 753350392043.dkr.ecr.eu-west-1.amazonaws.com
 ```
 
 ## Security Notes
