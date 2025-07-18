@@ -44,7 +44,18 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                checkout scm
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: '*/task_6']],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/evgmsk/rsschool-devops-course-tasks.git',
+                        credentialsId: 'github-credentials'
+                    ]],
+                    doGenerateSubmoduleConfigurations: false,
+                    extensions: [[$class: 'WipeWorkspace']], // clears stale repo
+                    submoduleCfg: [],
+                    ])
+
             }
         }
 
