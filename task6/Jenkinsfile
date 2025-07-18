@@ -1,8 +1,9 @@
 pipeline {
+     
     agent {
         kubernetes {
             label 'ecr-python-agent'
-            defaultContainer 'jnlp'
+            defaultContainer 'tools'  // <-- this must match container name
         }
     }
 
