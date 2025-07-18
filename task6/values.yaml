@@ -1,50 +1,4 @@
-image:
-  repository: jenkins/jenkins
-  tag: lts-alpine
-  pullPolicy: IfNotPresent
-
-service:
-  type: NodePort
-  port: 8080
-  nodePort: 30080
-
-serviceAccount:
-  create: true
-  name: jenkins
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::753350392043:role/ecr-man
-
-persistence:
-  enabled: true
-  storageClass: "manual"
-  accessMode: ReadWriteOnce
-  size: 8Gi
-  volumes:
-    - name: jenkins-home
-      hostPath:
-        path: /data/jenkins
-
-resources:
-  requests:
-    cpu: 100m
-    memory: 256Mi
-  limits:
-    cpu: 500m
-    memory: 512Mi
-
-securityContext:
-  runAsUser: 1000
-  fsGroup: 1000
-
-admin:
-  name: admin
-  password: password
-  email: emoskvich@yandex.com
-
 controller:
-  serviceAccount:
-    name: jenkins
-
   installPlugins:
     - kubernetes:latest
     - workflow-aggregator
@@ -59,90 +13,60 @@ controller:
     - ssh-agent
     - sonar
     - pipeline-stage-view
-    
-additionalAgents:
-  ecr-python-agent:
-    customJenkinsLabels: ecr-python-agent
-    image: jenkins/inbound-agent:latest  # still needed for jnlp
-    imagePullPolicy: Always
-    yamlTemplate: |-
-      apiVersion: v1
-      kind: Pod
-      metadata:
-        labels:
-          jenkins/label: ecr-python-agent
-      spec:
-        containers:
-          - name: jnlp
-            image: jenkins/inbound-agent:alpine
-            imagePullPolicy: IfNotPresent
-            resources:
-              requests:
-                cpu: "100m"
-                memory: "256Mi"
-              limits:
-                cpu: "500m"
-                memory: "512Mi"
-          - name: tools
-            image: 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
-            imagePullPolicy: Always
-            command:
-              - cat
-            tty: true
-            envFrom:
-              - secretRef:
-                  name: github-credentials
-              - secretRef:
-                  name: jenkins-sonar-token
-            resources:
-              requests:
-                cpu: "100m"
-                memory: "256Mi"
-              limits:
-                cpu: "500m"
-                memory: "512Mi"
 
-  # additionalAgents:
-  #   ecr-python-agent:
-  #     customJenkinsLabels: ecr-python-agent
-  #     image: 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
-  #     imagePullPolicy: Always
-  #     command: ""
-  #     args: ""
-  #     ttyEnabled: true
-  #     resources:
-  #       requests:
-  #         cpu: "100m"
-  #         memory: "256Mi"
-  #       limits:
-  #         cpu: "500m"
-  #         memory: "512Mi"
-  #     yamlTemplate: |-
-  #       apiVersion: v1
-  #       kind: Pod
-  #       metadata:
-  #         labels:
-  #           jenkins/label: ecr-python-agent
-  #       spec:
-  #         containers:
-  #           - name: jnlp
-  #             image: 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
-  #             imagePullPolicy: Always
-  #             tty: true
-  #             command: [""]
-  #             args: [""]
-  #             resources:
-  #               requests:
-  #                 cpu: "100m"
-  #                 memory: "256Mi"
-  #               limits:
-  #                 cpu: "500m"
-  #                 memory: "512Mi"
-  #             envFrom:
-  #               - secretRef:
-  #                   name: github-credentials
-  #               - secretRef:
-  #                   name: jenkins-sonar-token
+  serviceAccount:
+    name: jenkins
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::753350392043:role/ecr-man
+
+  agent:
+    image:
+      registry: 753350392043.dkr.ecr.eu-west-1.amazonaws.com
+      repository: jenkins-agent
+      tag: latest
+    imagePullSecretName: ecr-registry-secret
+    alwaysPullImage: true
+    customJenkinsLabels: ecr-python-agent
+
+  additionalAgents:
+    ecr-python-agent:
+      customJenkinsLabels: ecr-python-agent
+      yamlTemplate: |-
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          labels:
+            jenkins/label: ecr-python-agent
+        spec:
+          containers:
+            - name: jnlp
+              image: jenkins/inbound-agent:3309.v27b_9314fd1a_4-1
+              imagePullPolicy: IfNotPresent
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+            - name: tools
+              image: 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
+              imagePullPolicy: Always
+              command:
+                - cat
+              tty: true
+              envFrom:
+                - secretRef:
+                    name: github-credentials
+                - secretRef:
+                    name: jenkins-sonar-token
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
 
 rbac:
   create: true
@@ -158,3 +82,35 @@ sonarqube:
 
 aws:
   region: "eu-west-1"
+
+persistence:
+  enabled: true
+  storageClass: "manual"
+  accessMode: ReadWriteOnce
+  size: 8Gi
+  volumes:
+    - name: jenkins-home
+      hostPath:
+        path: /data/jenkins
+
+securityContext:
+  runAsUser: 1000
+  fsGroup: 1000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+admin:
+  name: admin
+  password: password
+  email: emoskvich@yandex.com
+
+service:
+  type: NodePort
+  port: 8080
+  nodePort: 30080

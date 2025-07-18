@@ -1,9 +1,8 @@
 pipeline {
-     
     agent {
         kubernetes {
-            label 'ecr-python-agent'
-            defaultContainer 'tools'  // <-- this must match container name
+            inheritFrom 'ecr-python-agent'   // 👈 Inherit custom Helm pod template
+            defaultContainer 'tools'         // 👈 Set default container
         }
     }
 
@@ -20,11 +19,10 @@ pipeline {
     stages {
         stage('Check Docker image') {
             steps {
-                container('jnlp') {
-                    sh 'docker inspect -f . $IMAGE_NAME || docker pull $IMAGE_NAME'
-                }
+                sh 'docker inspect -f . $IMAGE_NAME || docker pull $IMAGE_NAME'
             }
         }
+
         stage('Checkout') {
             steps {
                 checkout scm

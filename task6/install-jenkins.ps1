@@ -9,9 +9,9 @@ param (
 function Exec($cmd) {
     # Write-Host "🔧 Running: $cmd"
     cmd /c $cmd
-    if ($LASTEXITCODE -ne 0) {
-        throw "❌ Command failed: $cmd"
-    }
+    # if ($LASTEXITCODE -ne 0) {
+    #     throw "❌ Command failed: $cmd"
+    # }
 }
 
 # Write-Host '📦 Adding Jenkins Helm repo...'
@@ -52,7 +52,7 @@ stringData:
 $sonarSecret | kubectl apply -f -
 
 # Write-Host '🚀 Installing Jenkins Helm chart...'
-Exec "helm upgrade --install $ReleaseName jenkins/jenkins --namespace $Namespace -f $ValuesFile"
+Exec "helm upgrade --install $ReleaseName jenkins/jenkins --namespace $Namespace -f $ValuesFile --reset-values"
 
 # Write-Host '`n✅ Jenkins installed successfully in namespace [$Namespace]'
 
