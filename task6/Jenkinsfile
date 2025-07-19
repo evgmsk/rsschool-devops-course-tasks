@@ -135,7 +135,8 @@ pipeline {
                         ls -la /usr/local/bin/ || echo \"Directory not found\"
                         ls -la /usr/local/aws-cli/v2/current/bin/ || echo \"AWS CLI directory not found\"
                         
-                        /usr/local/aws-cli/v2/current/bin/aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        # Try using Docker to run AWS CLI
+                        docker run --rm -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN amazon/aws-cli:latest ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
                         echo \"Building Docker image...\"
                         docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} .
