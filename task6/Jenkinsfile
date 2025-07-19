@@ -121,8 +121,9 @@ pipeline {
             steps {
                 dir("${APP_DIR}") {
                     sh """
-                        echo \"Setting up environment...\"
-                        export PATH=$PATH:/usr/local/bin:/usr/bin
+                        echo \"Finding AWS CLI...\"
+                        find / -name aws 2>/dev/null || echo "AWS CLI not found"
+                        ls -la /usr/local/aws-cli/v2/current/bin/ || echo "AWS CLI directory not found"
                         
                         echo \"Logging in to ECR...\"
                         aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
