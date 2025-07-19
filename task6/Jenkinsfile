@@ -7,7 +7,7 @@ pipeline {
             kind: Pod
             metadata:
               labels:
-                jenkins-agent: "true"
+                ecr-python-agent: "true"
             spec:
               imagePullSecrets:
               - name: ecr-credentials
@@ -19,6 +19,29 @@ pipeline {
                   name: workspace-volume
                 - mountPath: /var/run/docker.sock
                   name: docker-sock
+              - name: tools
+                image: 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
+                imagePullPolicy: Always
+                imagePullSecrets:
+                - name: ecr-credentials
+                command:
+                    - cat
+                tty: true
+                envFrom:
+                    - secretRef:
+                        name: github-credentials
+                    - secretRef:
+                        name: jenkins-sonar-token
+                resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                volumeMounts:
+                - name: workspace-volume
+                  mountPath: /home/jenkins/agent
               volumes:
               - name: workspace-volume
                 emptyDir: {}
@@ -121,7 +144,7 @@ pipeline {
             steps {
                 dir("${APP_DIR}") {
                     sh """
-                         echo \"Logging in to ECR...\"
+                        echo \"Logging in to ECR...\"
                         aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
                         echo \"Building Docker image...\"

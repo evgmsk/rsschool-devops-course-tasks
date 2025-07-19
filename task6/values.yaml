@@ -19,12 +19,17 @@ controller:
     annotations:
       eks.amazonaws.com/role-arn: arn:aws:iam::753350392043:role/ecr-man
 
+  imagePullSecrets:
+    - name: ecr-credentials
+    
   agent:
     image:
       registry: 753350392043.dkr.ecr.eu-west-1.amazonaws.com
       repository: jenkins-agent
       tag: latest
-    imagePullSecretName: ecr-registry-secret
+      imagePullSecrets:
+        - name: ecr-credentials
+
     alwaysPullImage: true
     customJenkinsLabels: ecr-python-agent
 
@@ -42,6 +47,9 @@ controller:
             - name: jnlp
               image: jenkins/inbound-agent:latest
               imagePullPolicy: IfNotPresent
+              envFrom:
+                - secretRef:
+                    name: aws-credentials
               resources:
                 requests:
                   cpu: 100m
@@ -76,6 +84,7 @@ controller:
           volumes:
             - name: workspace-volume
               emptyDir: {}
+          
           restartPolicy: Never
 
   JCasC:
@@ -98,11 +107,11 @@ controller:
                           - cat
                         envVars:
                           - envVar:
-                              key: SONAR_AUTH_TOKEN
+                              key: SONAR_TOKEN
                               valueFrom:
                                 secretKeyRef:
                                   name: jenkins-sonar-token
-                                  key: SONAR_AUTH_TOKEN
+                                  key: SONAR_TOKEN
                           - envVar:
                               key: GITHUB_TOKEN
                               valueFrom:

@@ -16,6 +16,7 @@ RUN apk add --no-cache \
     libstdc++ \
     shadow
 
+
 # Optional: Create Python virtual environment for tools
 ENV VIRTUAL_ENV=/opt/venv
 RUN python3 -m venv $VIRTUAL_ENV
@@ -44,11 +45,17 @@ RUN curl -L -o sonar-scanner.zip https://binaries.sonarsource.com/Distribution/s
     ln -s /opt/sonar-scanner-*/bin/sonar-scanner /usr/local/bin/sonar-scanner && \
     rm sonar-scanner.zip
 
-ENV PATH="/opt/sonar-scanner-5.0.1.3006-linux/bin:${PATH}"
+RUN ln -sf /usr/local/aws-cli/v2/current/bin/aws /usr/local/bin/aws || true
+
+USER jenkins
+
+ENV PATH="/opt/sonar-scanner-5.0.1.3006-linux/bin:/usr/local/bin:/usr/bin:${PATH}"
+
+RUN aws --version || true
 
 # Set environment variables for runtime (can be overridden by Kubernetes secrets)
 ENV GITHUB_USERNAME=""
 ENV GITHUB_TOKEN=""
 ENV SONAR_TOKEN=""
 
-USER jenkins
+
