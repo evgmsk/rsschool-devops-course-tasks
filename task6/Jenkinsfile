@@ -63,8 +63,10 @@ pipeline {
                 dir("${APP_DIR}") {
                     sh """
                         echo \"Installing Python dependencies...\"
-                        pip install --user flask pytest pytest-cov
-                        export PATH=$PATH:~/.local/bin
+                        # Create a new virtualenv instead of using the system one
+                        python3 -m venv ./venv
+                        . ./venv/bin/activate
+                        pip install flask pytest pytest-cov
                     """
                 }
             }
@@ -74,7 +76,8 @@ pipeline {
             steps {
                 dir("${APP_DIR}") {
                     sh """
-                        pytest tests/ --junitxml=test-results.xml --cov=. --cov-report=xml
+                        . ./venv/bin/activate
+                        python -m pytest tests/ --junitxml=test-results.xml --cov=. --cov-report=xml
                     """
                 }
             }
