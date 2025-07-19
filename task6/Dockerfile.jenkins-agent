@@ -47,6 +47,12 @@ RUN curl -L -o sonar-scanner.zip https://binaries.sonarsource.com/Distribution/s
 
 RUN ln -sf /usr/local/aws-cli/v2/current/bin/aws /usr/local/bin/aws || true
 
+# Add jenkins user to docker group
+RUN getent group docker && usermod -aG docker jenkins || echo "Docker group not found"
+
+# Fix permissions for Docker socket
+RUN chmod 666 /var/run/docker.sock || true
+
 USER jenkins
 
 ENV PATH="/opt/sonar-scanner-5.0.1.3006-linux/bin:/usr/local/bin:/usr/bin:${PATH}"

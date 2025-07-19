@@ -127,11 +127,19 @@ pipeline {
                 }
             }
             steps {
-                script {
-                    echo "Skipping Docker build and push due to permission issues"
-                    echo "Would build and push image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
-                    // Set a fixed image tag for testing
-                    env.IMAGE_TAG = "latest"
+                dir("${APP_DIR}") {
+                    sh """
+                        echo \"Logging in to ECR...\"
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+
+                        echo \"Building Docker image...\"
+                        docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} .
+                        docker tag ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+
+                        echo \"Pushing image to ECR...\"
+                        docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+                    """
                 }
             }
         }
@@ -155,8 +163,18 @@ pipeline {
                 script {
                     def ns = "flask-app-${ENVIRONMENT}"
                     echo "Deploying to namespace: ${ns}"
-                    echo "Skipping deployment to Kubernetes"
-                    echo "Would deploy to namespace: ${ns} with image tag: ${IMAGE_TAG}"
+                    sh """
+                        sed -i \"s/tag: .*/tag: ${IMAGE_TAG}/\" ./flask-app/values.yaml
+
+                        helm upgrade --install flask-app-${ENVIRONMENT} ./flask-app \\
+                            --namespace ${ns} \\
+                            --create-namespace \\
+                            --set image.tag=${IMAGE_TAG} \\
+                            --set environment=${ENVIRONMENT} \\
+                            -f ./flask-app/ecr-values.yaml
+
+                        kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n ${ns}
+                    """
                 }
             }
         }
