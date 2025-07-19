@@ -7,41 +7,26 @@ pipeline {
             kind: Pod
             metadata:
               labels:
-                ecr-python-agent: "true"
+                jenkins-agent: "true"
             spec:
               imagePullSecrets:
               - name: ecr-credentials
               containers:
               - name: jnlp
                 image: 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
+                command:
+                - /usr/local/bin/jenkins-agent
                 volumeMounts:
                 - mountPath: /home/jenkins/agent
                   name: workspace-volume
                 - mountPath: /var/run/docker.sock
                   name: docker-sock
-              - name: tools
-                image: 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
-                imagePullPolicy: Always
-                imagePullSecrets:
-                - name: ecr-credentials
-                command:
-                    - cat
                 tty: true
                 envFrom:
                     - secretRef:
                         name: github-credentials
                     - secretRef:
                         name: jenkins-sonar-token
-                resources:
-                requests:
-                  cpu: 100m
-                  memory: 256Mi
-                limits:
-                  cpu: 500m
-                  memory: 512Mi
-                volumeMounts:
-                - name: workspace-volume
-                  mountPath: /home/jenkins/agent
               volumes:
               - name: workspace-volume
                 emptyDir: {}
