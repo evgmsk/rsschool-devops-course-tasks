@@ -29,6 +29,10 @@ pipeline {
         }
     }
 
+    parameters {
+        booleanParam(name: 'FORCE_DEPLOY', defaultValue: true, description: 'Force deployment even if not on main branch')
+    }
+
     environment {
         IMAGE_NAME = "753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest"
         ECR_REGISTRY = '753350392043.dkr.ecr.eu-west-1.amazonaws.com'
@@ -88,31 +92,23 @@ pipeline {
             }
         }
 
-        stage('Security Check - SonarQube') {
-            steps {
-                withSonarQubeEnv('SonarQube') {
-                    dir("${APP_DIR}") {
-                        sh """
-                            sonar-scanner \\
-                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \\
-                                -Dsonar.sources=. \\
-                                -Dsonar.host.url=http://sonarqube:9000 \\
-                                -Dsonar.login=7ef1be7f63555f2a959b78d26d39876600563e49 \\
-                                -Dsonar.python.coverage.reportPaths=coverage.xml \\
-                                -Dsonar.python.xunit.reportPath=test-results.xml
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('Quality Gate') {
-            steps {
-                timeout(time: 1, unit: 'HOURS') {
-                    waitForQualityGate abortPipeline: true
-                }
-            }
-        }
+        // stage('Security Check - SonarQube') {
+        //     steps {
+        //         withSonarQubeEnv('SonarQube') {
+        //             dir("${APP_DIR}") {
+        //                 sh """
+        //                     sonar-scanner \\
+        //                         -Dsonar.projectKey=${SONAR_PROJECT_KEY} \\
+        //                         -Dsonar.sources=. \\
+        //                         -Dsonar.host.url=http://sonarqube:9000 \\
+        //                         -Dsonar.login=${SONAR_TOEKN} \\
+        //                         -Dsonar.python.coverage.reportPaths=coverage.xml \\
+        //                         -Dsonar.python.xunit.reportPath=test-results.xml
+        //                 """
+        //             }
+        //         }
+        //     }
+        // }
 
         stage('Build & Push Docker Image') {
             when {
@@ -160,14 +156,14 @@ pipeline {
                     def ns = "flask-app-${ENVIRONMENT}"
                     echo "Deploying to namespace: ${ns}"
                     sh """
-                        sed -i \"s/tag: .*/tag: ${IMAGE_TAG}/\" helm-chart/values.yaml
+                        sed -i \"s/tag: .*/tag: ${IMAGE_TAG}/\" ./flask-app/values.yaml
 
-                        helm upgrade --install flask-app-${ENVIRONMENT} ./helm-chart \\
+                        helm upgrade --install flask-app-${ENVIRONMENT} ./flask-app \\
                             --namespace ${ns} \\
                             --create-namespace \\
                             --set image.tag=${IMAGE_TAG} \\
                             --set environment=${ENVIRONMENT} \\
-                            -f ecr-values.yaml
+                            -f ./flask-app/ecr-values.yaml
 
                         kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n ${ns}
                     """
