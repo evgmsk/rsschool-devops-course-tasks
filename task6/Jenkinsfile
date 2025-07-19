@@ -83,8 +83,7 @@ pipeline {
             }
             post {
                 always {
-                    publishTestResults testResultsPattern: "${APP_DIR}/test-results.xml"
-                    publishCoverage adapters: [coberturaAdapter("${APP_DIR}/coverage.xml")], sourceFileResolver: sourceFiles('STORE_LAST_BUILD')
+                    junit "${APP_DIR}/test-results.xml"
                 }
             }
         }
@@ -97,8 +96,8 @@ pipeline {
                             sonar-scanner \\
                                 -Dsonar.projectKey=${SONAR_PROJECT_KEY} \\
                                 -Dsonar.sources=. \\
-                                -Dsonar.host.url=${SONAR_HOST_URL} \\
-                                -Dsonar.login=${SONAR_AUTH_TOKEN} \\
+                                -Dsonar.host.url=http://sonarqube:9000 \\
+                                -Dsonar.login=7ef1be7f63555f2a959b78d26d39876600563e49 \\
                                 -Dsonar.python.coverage.reportPaths=coverage.xml \\
                                 -Dsonar.python.xunit.reportPath=test-results.xml
                         """
