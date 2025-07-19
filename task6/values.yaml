@@ -80,7 +80,7 @@ rbac:
     clusterRole: cluster-admin
 
 imagePullSecrets:
-  - name: ecr-registry-secret
+  - name: ecr-credentials
 
 pipeline:
   gitUrl: "https://github.com/evgmsk/rsschool-devops-course-tasks.git"
