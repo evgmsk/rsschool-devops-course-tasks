@@ -121,12 +121,9 @@ pipeline {
             steps {
                 dir("${APP_DIR}") {
                     sh """
-                        echo \"Finding AWS CLI...\"
-                        find / -name aws 2>/dev/null || echo "AWS CLI not found"
-                        ls -la /usr/local/aws-cli/v2/current/bin/ || echo "AWS CLI directory not found"
-                        
+
                         echo \"Logging in to ECR...\"
-                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        /usr/local/bin/aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
                         echo \"Building Docker image...\"
                         docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} .
@@ -165,14 +162,14 @@ pipeline {
                         
                         sed -i \"s/tag: .*/tag: ${IMAGE_TAG}/\" ./flask-app/values.yaml
 
-                        helm upgrade --install flask-app-${ENVIRONMENT} ./flask-app \\
+                        /usr/local/bin/helm upgrade --install flask-app-${ENVIRONMENT} ./flask-app \\
                             --namespace ${ns} \\
                             --create-namespace \\
                             --set image.tag=${IMAGE_TAG} \\
                             --set environment=${ENVIRONMENT} \\
                             -f ./flask-app/ecr-values.yaml
 
-                        kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n ${ns}
+                        /usr/local/bin/kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n ${ns}
                     """
                 }
             }
