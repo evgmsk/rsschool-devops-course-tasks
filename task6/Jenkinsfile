@@ -121,9 +121,11 @@ pipeline {
             steps {
                 dir("${APP_DIR}") {
                     sh """
-
+                        echo \"Installing AWS CLI...\"
+                        apk add --no-cache aws-cli
+                        
                         echo \"Logging in to ECR...\"
-                        /usr/local/bin/aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
                         echo \"Building Docker image...\"
                         docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} .
@@ -157,19 +159,21 @@ pipeline {
                     def ns = "flask-app-${ENVIRONMENT}"
                     echo "Deploying to namespace: ${ns}"
                     sh """
-                        echo \"Setting up environment...\"
-                        export PATH=$PATH:/usr/local/bin:/usr/bin
+                        echo \"Installing kubectl and helm...\"
+                        apk add --no-cache curl
+                        curl -LO \"https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl\" && chmod +x kubectl && mv kubectl /usr/local/bin/
+                        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && chmod 700 get_helm.sh && ./get_helm.sh
                         
                         sed -i \"s/tag: .*/tag: ${IMAGE_TAG}/\" ./flask-app/values.yaml
 
-                        /usr/local/bin/helm upgrade --install flask-app-${ENVIRONMENT} ./flask-app \\
+                        helm upgrade --install flask-app-${ENVIRONMENT} ./flask-app \\
                             --namespace ${ns} \\
                             --create-namespace \\
                             --set image.tag=${IMAGE_TAG} \\
                             --set environment=${ENVIRONMENT} \\
                             -f ./flask-app/ecr-values.yaml
 
-                        /usr/local/bin/kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n ${ns}
+                        kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n ${ns}
                     """
                 }
             }
