@@ -35,6 +35,19 @@ pipeline {
                 command:
                 - cat
                 tty: true
+                env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-credentials
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-credentials
+                      key: AWS_SECRET_ACCESS_KEY
+                - name: AWS_DEFAULT_REGION
+                  value: "eu-west-1"
                 volumeMounts:
                 - mountPath: /home/jenkins/agent
                   name: workspace-volume
@@ -117,33 +130,10 @@ pipeline {
                 }
             }
             steps {
-                dir("${APP_DIR}") {
-                    script {
-                        // Use AWS container for ECR login
-                        container('aws') {
-                            sh """
-                                echo "Logging in to ECR with AWS CLI..."
-                                aws ecr get-login-password --region ${AWS_REGION} > /home/jenkins/agent/ecr_token.txt
-                            """
-                        }
-                        
-                        // Use Docker container for build and push
-                        container('docker') {
-                            sh """
-                                echo "Logging in to ECR..."
-                                cat /home/jenkins/agent/ecr_token.txt | docker login --username AWS --password-stdin ${ECR_REGISTRY}
-                                rm /home/jenkins/agent/ecr_token.txt
-                                
-                                echo "Building Docker image..."
-                                docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} .
-                                docker tag ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
-
-                                echo "Pushing image to ECR..."
-                                docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
-                                docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
-                            """
-                        }
-                    }
+                echo "Skipping Docker build and push"
+                script {
+                    // Set a fixed image tag for testing
+                    env.IMAGE_TAG = "latest"
                 }
             }
         }
@@ -156,42 +146,8 @@ pipeline {
                     expression { return params.FORCE_DEPLOY == true }
                 }
             }
-            input {
-                message "Deploy to Kubernetes?"
-                ok "Deploy"
-                parameters {
-                    choice(name: 'ENVIRONMENT', choices: ['dev', 'staging', 'prod'], description: 'Select environment')
-                }
-            }
             steps {
-                script {
-                    def ns = "flask-app-${ENVIRONMENT}"
-                    echo "Deploying to namespace: ${ns}"
-                    
-                    // Update values.yaml with the new image tag
-                    sh "sed -i 's/tag: .*/tag: ${IMAGE_TAG}/' ./flask-app/values.yaml"
-                    
-                    // Use Helm container for deployment
-                    container('helm') {
-                        sh """
-                            echo "Deploying with Helm..."
-                            helm upgrade --install flask-app-${ENVIRONMENT} ./flask-app \\
-                                --namespace ${ns} \\
-                                --create-namespace \\
-                                --set image.tag=${IMAGE_TAG} \\
-                                --set environment=${ENVIRONMENT} \\
-                                -f ./flask-app/ecr-values.yaml
-                        """
-                    }
-                    
-                    // Use Kubectl container to check deployment status
-                    container('kubectl') {
-                        sh """
-                            echo "Checking deployment status..."
-                            kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n ${ns}
-                        """
-                    }
-                }
+                echo "Skipping Kubernetes deployment"
             }
         }
     }
