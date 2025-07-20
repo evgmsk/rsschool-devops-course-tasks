@@ -154,29 +154,29 @@ pipeline {
                     script {
                         // Use AWS container for ECR login
                         container('aws') {
-                            sh """
-                                echo \"Logging in to ECR with AWS CLI...\"
+                            sh '''
+                                echo "Logging in to ECR with AWS CLI..."
                                 aws ecr get-login-password --region ${AWS_REGION} > /home/jenkins/agent/ecr_token.txt
-                            """
+                            '''
                         }
                         
                         // Use Docker container for build and push
                         container('docker') {
-                            sh """
-                                echo \"Logging in to ECR...\"
+                            sh '''
+                                echo "Logging in to ECR..."
                                 cat /home/jenkins/agent/ecr_token.txt | docker login --username AWS --password-stdin ${ECR_REGISTRY}
                                 rm /home/jenkins/agent/ecr_token.txt
                                 
-                                echo \"Building Docker image...\"
+                                echo "Building Docker image..."
                                 docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} .
                                 docker tag ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
 
-                                echo \"Pushing image to ECR...\"
+                                echo "Pushing image to ECR..."
                                 docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
                                 docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
-                            """
+                            '''
                         }
-                    """
+                    }
                 }
             }
         }
@@ -200,31 +200,30 @@ pipeline {
                 script {
                     def ns = "flask-app-${ENVIRONMENT}"
                     echo "Deploying to namespace: ${ns}"
-                    script {
-                        // Update values.yaml with the new image tag
-                        sh "sed -i \"s/tag: .*/tag: ${IMAGE_TAG}/\" ./flask-app/values.yaml"
-                        
-                        // Use Helm container for deployment
-                        container('helm') {
-                            sh """
-                                echo \"Deploying with Helm...\"
-                                helm upgrade --install flask-app-${ENVIRONMENT} ./flask-app \\
-                                    --namespace ${ns} \\
-                                    --create-namespace \\
-                                    --set image.tag=${IMAGE_TAG} \\
-                                    --set environment=${ENVIRONMENT} \\
-                                    -f ./flask-app/ecr-values.yaml
-                            """
-                        }
-                        
-                        // Use Kubectl container to check deployment status
-                        container('kubectl') {
-                            sh """
-                                echo \"Checking deployment status...\"
-                                kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n ${ns}
-                            """
-                        }
-                    """
+                    
+                    // Update values.yaml with the new image tag
+                    sh "sed -i 's/tag: .*/tag: ${IMAGE_TAG}/' ./flask-app/values.yaml"
+                    
+                    // Use Helm container for deployment
+                    container('helm') {
+                        sh '''
+                            echo "Deploying with Helm..."
+                            helm upgrade --install flask-app-${ENVIRONMENT} ./flask-app \
+                                --namespace ${ns} \
+                                --create-namespace \
+                                --set image.tag=${IMAGE_TAG} \
+                                --set environment=${ENVIRONMENT} \
+                                -f ./flask-app/ecr-values.yaml
+                        '''
+                    }
+                    
+                    // Use Kubectl container to check deployment status
+                    container('kubectl') {
+                        sh '''
+                            echo "Checking deployment status..."
+                            kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n ${ns}
+                        '''
+                    }
                 }
             }
         }
@@ -236,6 +235,12 @@ pipeline {
         }
         success {
             echo '✅ Pipeline completed successfully!'
+        }
+        failure {
+            echo '❌ Pipeline failed!'
+        }
+    }
+}    echo '✅ Pipeline completed successfully!'
         }
         failure {
             echo '❌ Pipeline failed!'
