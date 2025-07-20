@@ -54,6 +54,14 @@ pipeline {
                 volumeMounts:
                 - mountPath: /home/jenkins/agent
                   name: workspace-volume
+              - name: python
+                image: python:3.9-alpine
+                command:
+                - cat
+                tty: true
+                volumeMounts:
+                - mountPath: /home/jenkins/agent
+                  name: workspace-volume
               volumes:
               - name: workspace-volume
                 emptyDir: {}
@@ -97,12 +105,16 @@ pipeline {
         stage('Build Application') {
             steps {
                 dir("${APP_DIR}") {
-                    sh """
-                        echo \"Installing Python dependencies...\"
-                        python3 -m venv ./venv || python -m venv ./venv
-                        . ./venv/bin/activate
-                        pip install flask pytest pytest-cov
-                    """
+                    script {
+                        container('python') {
+                            sh '''
+                                echo "Installing Python dependencies..."
+                                python -m venv ./venv
+                                . ./venv/bin/activate
+                                pip install flask pytest pytest-cov
+                            '''
+                        }
+                    }
                 }
             }
         }
@@ -110,10 +122,14 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 dir("${APP_DIR}") {
-                    sh """
-                        . ./venv/bin/activate
-                        python -m pytest tests/ --junitxml=test-results.xml --cov=. --cov-report=xml
-                    """
+                    script {
+                        container('python') {
+                            sh '''
+                                . ./venv/bin/activate
+                                python -m pytest tests/ --junitxml=test-results.xml --cov=. --cov-report=xml
+                            '''
+                        }
+                    }
                 }
             }
             post {
