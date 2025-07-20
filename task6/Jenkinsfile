@@ -123,24 +123,6 @@ pipeline {
             }
         }
 
-        // stage('Security Check - SonarQube') {
-        //     steps {
-        //         withSonarQubeEnv('SonarQube') {
-        //             dir("${APP_DIR}") {
-        //                 sh """
-        //                     sonar-scanner \\
-        //                         -Dsonar.projectKey=${SONAR_PROJECT_KEY} \\
-        //                         -Dsonar.sources=. \\
-        //                         -Dsonar.host.url=http://sonarqube:9000 \\
-        //                         -Dsonar.login=${SONAR_TOEKN} \\
-        //                         -Dsonar.python.coverage.reportPaths=coverage.xml \\
-        //                         -Dsonar.python.xunit.reportPath=test-results.xml
-        //                 """
-        //             }
-        //         }
-        //     }
-        // }
-
         stage('Build & Push Docker Image') {
             when {
                 anyOf {
@@ -208,11 +190,11 @@ pipeline {
                     container('helm') {
                         sh '''
                             echo "Deploying with Helm..."
-                            helm upgrade --install flask-app-${ENVIRONMENT} ./flask-app \
-                                --namespace ${ns} \
-                                --create-namespace \
-                                --set image.tag=${IMAGE_TAG} \
-                                --set environment=${ENVIRONMENT} \
+                            helm upgrade --install flask-app-${ENVIRONMENT} ./flask-app \\
+                                --namespace ${ns} \\
+                                --create-namespace \\
+                                --set image.tag=${IMAGE_TAG} \\
+                                --set environment=${ENVIRONMENT} \\
                                 -f ./flask-app/ecr-values.yaml
                         '''
                     }
@@ -235,12 +217,6 @@ pipeline {
         }
         success {
             echo '✅ Pipeline completed successfully!'
-        }
-        failure {
-            echo '❌ Pipeline failed!'
-        }
-    }
-}    echo '✅ Pipeline completed successfully!'
         }
         failure {
             echo '❌ Pipeline failed!'
