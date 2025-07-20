@@ -13,9 +13,7 @@ pipeline {
               - name: ecr-credentials
               containers:
               - name: jnlp
-                image: 753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest
-                command:
-                - /usr/local/bin/jenkins-agent
+                image: jenkins/inbound-agent:alpine-jdk17
                 volumeMounts:
                 - mountPath: /home/jenkins/agent
                   name: workspace-volume
@@ -74,8 +72,10 @@ pipeline {
             steps {
                 dir("${APP_DIR}") {
                     sh """
+                        echo \"Installing required tools...\"
+                        apk add --no-cache python3 py3-pip curl docker-cli
+                        
                         echo \"Installing Python dependencies...\"
-                        # Create a new virtualenv instead of using the system one
                         python3 -m venv ./venv
                         . ./venv/bin/activate
                         pip install flask pytest pytest-cov
@@ -129,8 +129,11 @@ pipeline {
             steps {
                 dir("${APP_DIR}") {
                     sh """
+                        echo \"Installing AWS CLI...\"
+                        apk add --no-cache aws-cli
+                        
                         echo \"Logging in to ECR...\"
-                        /usr/local/aws-cli/v2/current/bin/aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
                         echo \"Building Docker image...\"
                         docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} .
@@ -164,6 +167,11 @@ pipeline {
                     def ns = "flask-app-${ENVIRONMENT}"
                     echo "Deploying to namespace: ${ns}"
                     sh """
+                        echo \"Installing kubectl and helm...\"
+                        apk add --no-cache curl
+                        curl -LO \"https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl\" && chmod +x kubectl && mv kubectl /usr/local/bin/
+                        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && chmod 700 get_helm.sh && ./get_helm.sh
+                        
                         sed -i \"s/tag: .*/tag: ${IMAGE_TAG}/\" ./flask-app/values.yaml
 
                         helm upgrade --install flask-app-${ENVIRONMENT} ./flask-app \\
