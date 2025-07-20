@@ -17,20 +17,46 @@ pipeline {
                 volumeMounts:
                 - mountPath: /home/jenkins/agent
                   name: workspace-volume
-                - mountPath: /var/run/docker.sock
-                  name: docker-sock
                 tty: true
                 envFrom:
                     - secretRef:
                         name: github-credentials
                     - secretRef:
                         name: jenkins-sonar-token
+              - name: docker
+                image: docker:dind
+                securityContext:
+                  privileged: true
+                volumeMounts:
+                - mountPath: /home/jenkins/agent
+                  name: workspace-volume
+              - name: aws
+                image: amazon/aws-cli:latest
+                command:
+                - cat
+                tty: true
+                volumeMounts:
+                - mountPath: /home/jenkins/agent
+                  name: workspace-volume
+              - name: kubectl
+                image: bitnami/kubectl:latest
+                command:
+                - cat
+                tty: true
+                volumeMounts:
+                - mountPath: /home/jenkins/agent
+                  name: workspace-volume
+              - name: helm
+                image: alpine/helm:latest
+                command:
+                - cat
+                tty: true
+                volumeMounts:
+                - mountPath: /home/jenkins/agent
+                  name: workspace-volume
               volumes:
               - name: workspace-volume
                 emptyDir: {}
-              - name: docker-sock
-                hostPath:
-                  path: /var/run/docker.sock
             """
         }
     }
@@ -72,11 +98,8 @@ pipeline {
             steps {
                 dir("${APP_DIR}") {
                     sh """
-                        echo \"Installing required tools...\"
-                        sudo apk add --no-cache python3 py3-pip curl docker-cli || echo "Failed to install packages, trying to use existing tools"
-                        
                         echo \"Installing Python dependencies...\"
-                        python3 -m venv ./venv
+                        python3 -m venv ./venv || python -m venv ./venv
                         . ./venv/bin/activate
                         pip install flask pytest pytest-cov
                     """
@@ -128,20 +151,31 @@ pipeline {
             }
             steps {
                 dir("${APP_DIR}") {
-                    sh """
-                        echo \"Installing AWS CLI...\"
-                        sudo apk add --no-cache aws-cli || echo "Failed to install AWS CLI, trying to use existing tools"
+                    script {
+                        // Use AWS container for ECR login
+                        container('aws') {
+                            sh """
+                                echo \"Logging in to ECR with AWS CLI...\"
+                                aws ecr get-login-password --region ${AWS_REGION} > /home/jenkins/agent/ecr_token.txt
+                            """
+                        }
                         
-                        echo \"Logging in to ECR...\"
-                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        // Use Docker container for build and push
+                        container('docker') {
+                            sh """
+                                echo \"Logging in to ECR...\"
+                                cat /home/jenkins/agent/ecr_token.txt | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                                rm /home/jenkins/agent/ecr_token.txt
+                                
+                                echo \"Building Docker image...\"
+                                docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} .
+                                docker tag ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
 
-                        echo \"Building Docker image...\"
-                        docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} .
-                        docker tag ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
-
-                        echo \"Pushing image to ECR...\"
-                        docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
-                        docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+                                echo \"Pushing image to ECR...\"
+                                docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+                                docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+                            """
+                        }
                     """
                 }
             }
@@ -166,22 +200,30 @@ pipeline {
                 script {
                     def ns = "flask-app-${ENVIRONMENT}"
                     echo "Deploying to namespace: ${ns}"
-                    sh """
-                        echo \"Installing kubectl and helm...\"
-                        sudo apk add --no-cache curl || echo "Failed to install curl, trying to use existing tools"
-                        curl -LO \"https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl\" && chmod +x kubectl && sudo mv kubectl /usr/local/bin/ || echo "Failed to install kubectl"
-                        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && chmod 700 get_helm.sh && sudo ./get_helm.sh || echo "Failed to install Helm"
+                    script {
+                        // Update values.yaml with the new image tag
+                        sh "sed -i \"s/tag: .*/tag: ${IMAGE_TAG}/\" ./flask-app/values.yaml"
                         
-                        sed -i \"s/tag: .*/tag: ${IMAGE_TAG}/\" ./flask-app/values.yaml
-
-                        helm upgrade --install flask-app-${ENVIRONMENT} ./flask-app \\
-                            --namespace ${ns} \\
-                            --create-namespace \\
-                            --set image.tag=${IMAGE_TAG} \\
-                            --set environment=${ENVIRONMENT} \\
-                            -f ./flask-app/ecr-values.yaml
-
-                        kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n ${ns}
+                        // Use Helm container for deployment
+                        container('helm') {
+                            sh """
+                                echo \"Deploying with Helm...\"
+                                helm upgrade --install flask-app-${ENVIRONMENT} ./flask-app \\
+                                    --namespace ${ns} \\
+                                    --create-namespace \\
+                                    --set image.tag=${IMAGE_TAG} \\
+                                    --set environment=${ENVIRONMENT} \\
+                                    -f ./flask-app/ecr-values.yaml
+                            """
+                        }
+                        
+                        // Use Kubectl container to check deployment status
+                        container('kubectl') {
+                            sh """
+                                echo \"Checking deployment status...\"
+                                kubectl rollout status deployment/flask-app-flask-app-${ENVIRONMENT} -n ${ns}
+                            """
+                        }
                     """
                 }
             }
