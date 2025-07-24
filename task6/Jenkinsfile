@@ -1,0 +1,166 @@
+pipeline {
+
+   agent {
+        kubernetes {
+            yaml """
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                jenkins-agent: "true"
+            spec:
+              imagePullSecrets:
+              - name: ecr-credentials
+              containers:
+              - name: jnlp
+                image: jenkins/inbound-agent:alpine-jdk17
+                volumeMounts:
+                - mountPath: /home/jenkins/agent
+                  name: workspace-volume
+                tty: true
+                envFrom:
+                    - secretRef:
+                        name: github-credentials
+                    - secretRef:
+                        name: jenkins-sonar-token
+              - name: docker
+                image: docker:dind
+                securityContext:
+                  privileged: true
+                volumeMounts:
+                - mountPath: /home/jenkins/agent
+                  name: workspace-volume
+              - name: aws
+                image: amazon/aws-cli:latest
+                command:
+                - cat
+                tty: true
+                env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-credentials
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-credentials
+                      key: AWS_SECRET_ACCESS_KEY
+                - name: AWS_DEFAULT_REGION
+                  value: "eu-west-1"
+                volumeMounts:
+                - mountPath: /home/jenkins/agent
+                  name: workspace-volume
+              - name: kubectl
+                image: bitnami/kubectl:latest
+                command:
+                - cat
+                tty: true
+                volumeMounts:
+                - mountPath: /home/jenkins/agent
+                  name: workspace-volume
+              - name: helm
+                image: alpine/helm:latest
+                command:
+                - cat
+                tty: true
+                volumeMounts:
+                - mountPath: /home/jenkins/agent
+                  name: workspace-volume
+              - name: python
+                image: python:3.9-alpine
+                command:
+                - cat
+                tty: true
+                volumeMounts:
+                - mountPath: /home/jenkins/agent
+                  name: workspace-volume
+              volumes:
+              - name: workspace-volume
+                emptyDir: {}
+            """
+        }
+    }
+
+    parameters {
+        booleanParam(name: 'FORCE_DEPLOY', defaultValue: true, description: 'Force deployment even if not on main branch')
+    }
+
+    environment {
+        IMAGE_NAME = "753350392043.dkr.ecr.eu-west-1.amazonaws.com/jenkins-agent:latest"
+        ECR_REGISTRY = '753350392043.dkr.ecr.eu-west-1.amazonaws.com'
+        ECR_REPOSITORY = 'rs-flask-app'
+        AWS_REGION = 'eu-west-1'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        SONAR_PROJECT_KEY = 'flask-app'
+        APP_DIR = 'task6'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: '*/task_6']],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/evgmsk/rsschool-devops-course-tasks.git',
+                        credentialsId: 'github-credentials'
+                    ]],
+                    doGenerateSubmoduleConfigurations: false,
+                    extensions: [[$class: 'WipeWorkspace']], // clears stale repo
+                    submoduleCfg: [],
+                    ])
+
+            }
+        }
+
+        stage('Build Application') {
+            steps {
+                echo "Skipping Python build and tests"
+            }
+        }
+
+        stage('Build & Push Docker Image') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'task_6'
+                    expression { return params.FORCE_DEPLOY == true }
+                }
+            }
+            steps {
+                echo "Skipping Docker build and push"
+                script {
+                    // Set a fixed image tag for testing
+                    env.IMAGE_TAG = "latest"
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'task_6'
+                    expression { return params.FORCE_DEPLOY == true }
+                }
+            }
+            steps {
+                echo "Skipping Kubernetes deployment"
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo '✅ Pipeline completed successfully!'
+        }
+        failure {
+            echo '❌ Pipeline failed!'
+        }
+    }
+}
