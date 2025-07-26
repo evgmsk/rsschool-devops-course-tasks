@@ -8,3 +8,4 @@ terr*
 # Jenkins secrets
 setup-secrets.sh
 setup-secrets.ps1
+secrets.sh
