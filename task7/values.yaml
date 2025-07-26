@@ -1,0 +1,49 @@
+grafana:
+  enabled: true
+  
+  # SMTP Configuration
+  grafana.ini:
+    smtp:
+      enabled: true
+      host: "host.minikube.internal:2587"
+      user: "em1777933@gmail.com"
+      password: "$__file{/etc/grafana-secrets/smtp-password}"
+      from_address: "em1777933@gmail.com"
+      from_name: "Grafana Alerts"
+      skip_verify: true
+      startTLS_policy: "opportunistic"
+
+  # Mount the secret
+  extraSecretMounts:
+    - name: smtp-secret
+      mountPath: "/etc/grafana-secrets"
+      secretName: "grafana-smtp"
+      readOnly: true
+
+  # Ensure proper permissions
+  initChownData:
+    enabled: true
+
+alertmanager:
+  enabled: true
+  config:
+    global:
+      smtp_from: 'em1777933@gmail.com'
+      smtp_smarthost: 'host.minikube.internal:2587'
+      smtp_auth_username: 'em1777933@gmail.com'
+      smtp_auth_password_file: '/etc/alertmanager-secrets/smtp-password'
+      smtp_require_tls: false
+    route:
+      receiver: 'email-notifications'
+    receivers:
+    - name: 'email-notifications'
+      email_configs:
+      - to: 'emoskvich@yandex.ru'
+        send_resolved: true
+
+  # Mount the same secret for Alertmanager
+  extraSecretMounts:
+    - name: alertmanager-smtp
+      mountPath: "/etc/alertmanager-secrets"
+      secretName: "grafana-smtp"
+      readOnly: true
